@@ -136,9 +136,10 @@ internal sealed class TrayApplicationContext : ApplicationContext
             SchedulePhase.Paused => "一時解除中",
             _ => "開始前"
         };
-        _form.Status.Text = "現在の状態: " + status;
+        var statusText = "現在の状態: " + status;
         if (_lastSnapshot is { Phase: not SchedulePhase.Disabled } && _lastSnapshot.NextBoundary != DateTimeOffset.MaxValue)
-            _form.Status.Text += $"\n次の切替: {_lastSnapshot.NextBoundary.ToLocalTime():MM/dd HH:mm}";
+            statusText += $"\n次の切替: {_lastSnapshot.NextBoundary.ToLocalTime():MM/dd HH:mm}";
+        _form.SetStatus(statusText);
         _statusItem.Text = status.Length > 40 ? status[..40] + "…" : status;
         bool canPause = _sessionActive && !_manualHold && !_storageProblem &&
             (_controller.State == EffectState.Applied || _lastSnapshot?.Phase == SchedulePhase.Paused);

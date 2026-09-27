@@ -13,4 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="../OyasumiGray.Core/OyasumiGray.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="OyasumiGray.Windows.Tests" />
+  </ItemGroup>
 </Project>

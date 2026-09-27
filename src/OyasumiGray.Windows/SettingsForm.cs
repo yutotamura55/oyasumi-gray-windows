@@ -75,6 +75,11 @@ internal sealed class SettingsForm : Form
             $"{settings.Start:HH:mm} から薄れ始め、{settings.Start.AddMinutes(settings.FadeMinutes):HH:mm} に白黒、{settings.Restore:HH:mm} にカラーへ戻ります。";
     }
 
+    public void SetStatus(string text)
+    {
+        if (Status.Text != text) Status.Text = text;
+    }
+
     public void CloseForExit() { _closingForExit = true; Close(); }
 
     protected override void OnFormClosing(FormClosingEventArgs e)

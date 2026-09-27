@@ -24,7 +24,8 @@ Windows 11 x64 の通常の SDR デスクトップを初版対象とします。
 ```powershell
 dotnet build OyasumiGray.sln -c Release
 dotnet run --project tests/OyasumiGray.Core.Tests/OyasumiGray.Core.Tests.csproj
+dotnet run --project tests/OyasumiGray.Windows.Tests/OyasumiGray.Windows.Tests.csproj -c Release
 dotnet publish src/OyasumiGray.Windows/OyasumiGray.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/publish
 ```
 
-時刻計算と状態管理のテストは OS 非依存です。実際の画面への適用は Windows 実機で確認してください。設計上の動作と受け入れ条件は [設計書](docs/design.md)、実施済みの確認は [検証状況](docs/verification.md) にあります。
+時刻計算と状態管理のテストは OS 非依存です。設定画面のテストは Windows 上で実行してください。実際の画面への適用も Windows 実機で確認してください。設計上の動作と受け入れ条件は [設計書](docs/design.md)、実施済みの確認は [検証状況](docs/verification.md) にあります。
