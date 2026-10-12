@@ -16,8 +16,11 @@ Windows 11 x64 の通常の SDR デスクトップを対象に設計していま
 リポジトリのルートで PowerShell から次を実行します。
 
 ```powershell
-./scripts/build-package.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-package.ps1
 ```
+
+`-ExecutionPolicy Bypass` は、このコマンドで起動する PowerShell にだけ適用されます。
+PC 全体の設定は変更しません。
 
 `artifacts/OyasumiGray.Windows-win-x64.zip` が作成されます。
 ZIP を任意のフォルダーに展開し、`OyasumiGray.Windows.exe` を実行してください。
