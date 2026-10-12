@@ -25,7 +25,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private bool _sleeping;
     private bool _exiting;
     private int _pendingWrites;
-    private int _revision;
+    private int _settingsRevision;
 
     public TrayApplicationContext()
     {
@@ -160,13 +160,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
             MessageBox.Show(error, "設定を確認してください", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
-        var revision = ++_revision;
+        var revision = ++_settingsRevision;
         _form.SaveButton.Enabled = false;
         _pendingWrites++;
         try
         {
             await _store.SaveSettingsAsync(requested);
-            if (revision != _revision) return;
+            if (revision != _settingsRevision) return;
             _settings = requested;
             if (_storageProblem)
             {
@@ -214,7 +214,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private async Task StopAsync()
     {
-        ++_revision;
+        ++_settingsRevision;
         _settings = _settings with { Enabled = false };
         _pauseUntil = null;
         _manualHold = false;
