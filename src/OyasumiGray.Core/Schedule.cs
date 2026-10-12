@@ -14,10 +14,11 @@ public static class Schedule
         if (!settings.Enabled) return new(0, SchedulePhase.Disabled, DateTimeOffset.MaxValue);
         if (settings.Validate() is not null) throw new ArgumentException("Invalid schedule", nameof(settings));
 
-        var localDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).Date);
-        for (int offset = -1; offset <= 0; offset++)
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).Date);
+        // An active interval may have started yesterday and crossed midnight.
+        for (int dayOffset = -1; dayOffset <= 0; dayOffset++)
         {
-            var date = localDate.AddDays(offset);
+            var date = today.AddDays(dayOffset);
             var start = ResolveLocal(date.ToDateTime(settings.Start), zone);
             var restoreDate = settings.Restore <= settings.Start ? date.AddDays(1) : date;
             var restore = ResolveLocal(restoreDate.ToDateTime(settings.Restore), zone);
@@ -32,9 +33,10 @@ public static class Schedule
             return new(1, SchedulePhase.Gray, restore) { RestoreBoundary = restore };
         }
 
-        for (int offset = 0; offset <= 2; offset++)
+        // Find the next start after this instant in the local time zone.
+        for (int dayOffset = 0; dayOffset <= 2; dayOffset++)
         {
-            var next = ResolveLocal(localDate.AddDays(offset).ToDateTime(settings.Start), zone);
+            var next = ResolveLocal(today.AddDays(dayOffset).ToDateTime(settings.Start), zone);
             if (next > now) return new(0, SchedulePhase.Waiting, next);
         }
         throw new InvalidOperationException("Next schedule boundary was not found.");
@@ -51,7 +53,9 @@ public static class Schedule
             while (zone.IsInvalidTime(after)) after = after.AddMinutes(1);
             local = local.Add(zone.GetUtcOffset(after) - zone.GetUtcOffset(before));
         }
-        var offset = zone.IsAmbiguousTime(local) ? zone.GetAmbiguousTimeOffsets(local).Max() : zone.GetUtcOffset(local);
-        return new DateTimeOffset(local, offset);
+        var utcOffset = zone.IsAmbiguousTime(local)
+            ? zone.GetAmbiguousTimeOffsets(local).Max()
+            : zone.GetUtcOffset(local);
+        return new DateTimeOffset(local, utcOffset);
     }
 }
