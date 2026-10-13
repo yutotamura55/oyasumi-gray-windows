@@ -31,7 +31,11 @@ public sealed class EffectController(IDisplayEffect effect)
         try
         {
             var current = effect.Read();
-            if (_lastWritten is null ? !current.IsIdentity : !current.NearlyEquals(_lastWritten))
+            // The API has no owner ID; compare its current matrix with our last write.
+            bool changedByAnotherApp = _lastWritten is null
+                ? !current.IsIdentity
+                : !current.NearlyEquals(_lastWritten);
+            if (changedByAnotherApp)
             {
                 _lastWritten = null;
                 State = EffectState.Conflict;
