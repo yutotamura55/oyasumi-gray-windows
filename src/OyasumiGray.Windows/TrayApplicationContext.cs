@@ -18,14 +18,14 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private AppSettings _settings;
     private DateTimeOffset? _pauseUntil;
     private ScheduleSnapshot? _lastSnapshot;
-    private bool _storageProblem;
+    private bool _settingsProblem;
     private bool _manualHold;
-    private bool _sessionActive = true;
     private bool _locked;
     private bool _sleeping;
     private bool _exiting;
     private int _pendingWrites;
     private int _settingsRevision;
+    private bool SessionAvailable => !_locked && !_sleeping;
 
     public TrayApplicationContext()
     {
@@ -38,7 +38,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         {
             _settings = AppSettings.Default;
-            _storageProblem = true;
+            _settingsProblem = true;
             showAtStart = true;
             Log("load", ex);
         }
@@ -92,7 +92,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _timer.Stop();
         if (_exiting) return;
-        if (_sessionActive && !_storageProblem && !_manualHold && _controller.State is not (EffectState.Conflict or EffectState.Fault))
+        if (SessionAvailable && !_settingsProblem && !_manualHold && _controller.State is not (EffectState.Conflict or EffectState.Fault))
         {
             try
             {
@@ -109,46 +109,25 @@ internal sealed class TrayApplicationContext : ApplicationContext
             }
             catch (Exception ex)
             {
-                _storageProblem = true;
+                _settingsProblem = true;
                 Log("evaluate", ex);
                 MessageBox.Show($"時刻設定を処理できませんでした。\n{ex.Message}", "おやすみグレー for Windows",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        else if (_storageProblem) _controller.Release();
+        else if (_settingsProblem) _controller.Release();
         RefreshStatus();
     }
 
     private void RefreshStatus()
     {
-        string status;
-        if (!_sessionActive) status = "ロックまたはスリープ中";
-        else if (_controller.State == EffectState.Conflict) status = "競合のため停止。ほかの画面の色変更を確認してください。";
-        else if (_controller.State == EffectState.Fault) status = $"適用できません: {_controller.Error}";
-        else if (_storageProblem) status = "設定を読み取れません。確認して保存してください。";
-        else if (_manualHold) status = "手動で解除しました。自動切替は停止中です。";
-        else status = _lastSnapshot?.Phase switch
-        {
-            SchedulePhase.Disabled => "自動切替はオフ",
-            SchedulePhase.Waiting => "開始前",
-            SchedulePhase.Fading => $"移行中・白黒度{_lastSnapshot.Ratio:P0}",
-            SchedulePhase.Gray => "白黒表示中",
-            SchedulePhase.Paused => "一時解除中",
-            _ => "開始前"
-        };
-        var statusText = "現在の状態: " + status;
-        if (_lastSnapshot is { Phase: not SchedulePhase.Disabled } && _lastSnapshot.NextBoundary != DateTimeOffset.MaxValue)
-            statusText += $"\n次の切替: {_lastSnapshot.NextBoundary.ToLocalTime():MM/dd HH:mm}";
-        _form.SetStatus(statusText);
-        _statusItem.Text = status.Length > 40 ? status[..40] + "…" : status;
-        bool canPause = _sessionActive && !_manualHold && !_storageProblem &&
-            (_controller.State == EffectState.Applied || _lastSnapshot?.Phase == SchedulePhase.Paused);
-        _pauseItem.Enabled = _form.PauseButton.Enabled = canPause;
-        bool canResume = _sessionActive && (_lastSnapshot?.Phase == SchedulePhase.Paused || _manualHold ||
-            _controller.State is EffectState.Conflict or EffectState.Fault);
-        _resumeItem.Enabled = _form.ResumeButton.Enabled = canResume;
-        bool canForce = _controller.State == EffectState.Conflict;
-        _forceItem.Visible = _form.ForceClearButton.Visible = canForce;
+        var status = TrayStatusPresentation.Create(SessionAvailable, _controller.State, _controller.Error,
+            _settingsProblem, _manualHold, _lastSnapshot);
+        _form.SetStatus(status.FormStatusText);
+        _statusItem.Text = status.MenuStatusText;
+        _pauseItem.Enabled = _form.PauseButton.Enabled = status.CanPause;
+        _resumeItem.Enabled = _form.ResumeButton.Enabled = status.CanResume;
+        _forceItem.Visible = _form.ForceClearButton.Visible = status.CanForceClear;
     }
 
     private async Task SaveSettingsAsync()
@@ -168,11 +147,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
             await _store.SaveSettingsAsync(requested);
             if (revision != _settingsRevision) return;
             _settings = requested;
-            if (_storageProblem)
+            if (_settingsProblem)
             {
                 await _store.SavePauseAsync(null);
                 _pauseUntil = null;
-                _storageProblem = false;
+                _settingsProblem = false;
             }
             Evaluate();
             StartupRegistration.Set(_form.LaunchAtLogin.Checked);
@@ -226,7 +205,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             await _store.SaveSettingsAsync(_settings);
             await _store.SavePauseAsync(null);
-            _storageProblem = false;
+            _settingsProblem = false;
             Evaluate();
         }
         catch (Exception ex) { ShowPersistenceError("停止", ex); }
@@ -284,7 +263,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     }
     private void OnDisplayChanged(object? sender, EventArgs e) => OnUi(() =>
     {
-        if (_sessionActive) _controller.ReconcileAfterDisplayChange();
+        if (SessionAvailable) _controller.ReconcileAfterDisplayChange();
         Evaluate();
     });
     private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e) => OnUi(() =>
@@ -300,7 +279,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void Suspend()
     {
-        _sessionActive = false;
         _timer.Stop();
         _controller.Release();
         RefreshStatus();
@@ -308,8 +286,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ResumeSession()
     {
-        _sessionActive = !_locked && !_sleeping;
-        if (!_sessionActive) { RefreshStatus(); return; }
+        if (!SessionAvailable) { RefreshStatus(); return; }
         TimeZoneInfo.ClearCachedData();
         _controller.ReconcileAfterDisplayChange();
         Evaluate();
