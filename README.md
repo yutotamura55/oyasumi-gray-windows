@@ -1,31 +1,80 @@
 # おやすみグレー for Windows
 
-指定時刻から Windows のデスクトップ全体を徐々にグレースケールへ変え、朝の指定時刻にカラーへ戻す通知領域アプリです。同じコンセプトの [Chrome 拡張 oyasumi-gray](https://github.com/yutotamura55/oyasumi-gray) は Web ページだけを対象にします。両方を有効にするとブラウザ上で効果が重なります。
+指定時刻から Windows の画面を徐々にグレースケールにし、朝の指定時刻にカラーへ戻す通知領域アプリです。
+夜の PC 利用を終えるきっかけとして作っています。
 
-## 対応範囲
+現在は開発中です。
+Windows 11 x64 の通常の SDR デスクトップを対象に設計しています。
+実際の画面への適用や複数モニターでの動作は、まだ確認できていません。
+確認済みの範囲は [検証状況](docs/verification.md) に記録しています。
 
-Windows 11 x64 の通常の SDR デスクトップを初版対象とします。色の変更には Windows の Magnification API を使用します。HDR、独占全画面ゲーム、保護された動画、リモートデスクトップ、ロック画面では動作を保証しません。
+## 入手と起動
 
-## 使い方
+検証を終えた ZIP は [GitHub Releases][releases] の添付ファイルとして配布する予定です。
+現在は Release がありません。
+ソースから試す場合は、Windows 11 x64 と [.NET 10 SDK][dotnet-sdk] を用意してください。
+リポジトリのルートで PowerShell から次を実行します。
 
-1. `artifacts/OyasumiGray.Windows-win-x64.zip` を Windows 側のローカルフォルダーへ展開します。WSL 上の実行ファイルを直接使わないでください。
-2. `OyasumiGray.Windows.exe` を実行します。初回は設定画面が開きます。
-3. 開始時刻、移行時間、復帰時刻を確認し、「自動切替を有効にする」を選んで保存します。初期値は 22:00、60 分、07:00 です。
-4. 以後は通知領域のアイコンから設定、一時解除、停止、終了を操作できます。
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-package.ps1
+```
 
-ログオン起動は初期状態でオフです。必要な場合に設定画面で有効にしてください。アプリを終了すると、保存された自動切替設定は次回起動時に再開されます。自動切替そのものを止めるときは「今すぐカラーに戻して停止」を使います。
+`-ExecutionPolicy Bypass` は、このコマンドで起動する PowerShell にだけ適用されます。
+PC 全体の設定は変更しません。
 
-競合が見つかった場合は自動適用を止めます。強制終了後に色変換が残った場合、次回起動時の設定画面から、確認のうえで現在の色変換を解除できます。
+`artifacts/OyasumiGray.Windows-win-x64.zip` が作成されます。
+ZIP を任意のフォルダーに展開し、`OyasumiGray.Windows.exe` を実行してください。
 
-## 開発
+初回起動時に設定画面が開きます。
+開始時刻、移行時間、復帰時刻を確認し、「自動切替を有効にする」を選んで保存してください。
+初期値は 22:00、60 分、07:00 で、自動切替は初期状態でオフです。
+設定画面を閉じてもアプリは終了せず、タスクバーの通知領域にアイコンが残ります。
 
-.NET 10 SDK が必要です。Windows でビルドする場合:
+アイコンを右クリックすると、設定画面を開く、一時解除、停止、終了を選べます。
+「終了」を選ぶとアプリが終了します。
+保存済みの自動切替設定は次回起動時にも使われます。
+自動切替を止めるには「今すぐカラーに戻して停止」を選んでください。
+
+Windows にサインインしたとき自動で起動したい場合は、
+設定画面の「Windows へのログオン時に起動」にチェックを入れ、
+「設定を保存」を押してください。
+ログオン起動には OyasumiGray.Windows.exe の保存場所を登録します。
+設定後にこのファイルを移動すると、次回のサインイン時に自動起動できません。
+
+ほかのアプリによる画面の色変更を検出すると、自動適用を停止します。
+強制終了後に色変換が残ると、次回起動時の設定画面に解除ボタンが表示されます。
+「現在の画面の色変更を解除する」を選び、確認画面で解除するか決めてください。
+この操作は、ほかのアプリの色変換も解除する可能性があります。
+
+[Chrome 拡張 oyasumi-gray][chrome] は Web ページを対象にします。
+両方を有効にすると、ブラウザ上では効果が重なります。
+HDR、独占全画面ゲーム、保護された動画、リモートデスクトップ、ロック画面での動作は保証していません。
+
+## ソースコードの構成
+
+`src/OyasumiGray.Core` は、時刻計算・設定保存・色変換の制御を扱います。
+`src/OyasumiGray.Windows` は、設定画面・通知領域・Windows API を扱います。
+[設計書](docs/design.md) は実装前の判断と受け入れ条件を記録した文書です。
+[実装計画](docs/implementation-plan.md) には残る実機確認項目があります。
+
+## ビルドとテスト
+
+Windows でビルドとテストを実行するコマンドは次のとおりです。
 
 ```powershell
 dotnet build OyasumiGray.sln -c Release
-dotnet run --project tests/OyasumiGray.Core.Tests/OyasumiGray.Core.Tests.csproj
-dotnet run --project tests/OyasumiGray.Windows.Tests/OyasumiGray.Windows.Tests.csproj -c Release
-dotnet publish src/OyasumiGray.Windows/OyasumiGray.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o artifacts/publish
+dotnet run --project tests/OyasumiGray.Core.Tests -c Release
+dotnet run --project tests/OyasumiGray.Windows.Tests -c Release
 ```
 
-時刻計算と状態管理のテストは OS 非依存です。設定画面のテストは Windows 上で実行してください。実際の画面への適用も Windows 実機で確認してください。設計上の動作と受け入れ条件は [設計書](docs/design.md)、実施済みの確認は [検証状況](docs/verification.md) にあります。
+Core のテストは OS 非依存です。
+設定画面のテストと実際の画面への適用確認は Windows で行ってください。
+ZIP の作成には Windows PowerShell を使用します。
+
+## ライセンス
+
+[MIT License](LICENSE) です。
+
+[releases]: https://github.com/yutotamura55/oyasumi-gray-windows/releases
+[dotnet-sdk]: https://dotnet.microsoft.com/download/dotnet/10.0
+[chrome]: https://github.com/yutotamura55/oyasumi-gray
