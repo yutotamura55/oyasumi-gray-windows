@@ -1,7 +1,8 @@
 <Project>
   <PropertyGroup>
-    <!-- Pin the rule set so an SDK update does not add new build errors. -->
+    <!-- Pin the CA rule set; IDE style rules and formatting still follow the installed SDK. -->
     <AnalysisLevel>10.0</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

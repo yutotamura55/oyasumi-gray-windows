@@ -14,21 +14,26 @@ indent_size = 4
 indent_style = space
 indent_size = 2
 
-[*.sln]
-charset = utf-8-bom
-indent_style = tab
-
 [*.cs]
 csharp_style_namespace_declarations = file_scoped
 
-# Rules enforced in builds (EnforceCodeStyleInBuild in Directory.Build.props).
+# Rules enforced in builds (EnforceCodeStyleInBuild and TreatWarningsAsErrors in Directory.Build.props).
 # Only rules that match the existing code are listed; stricter rules are added gradually.
-dotnet_diagnostic.IDE0035.severity = warning # Unreachable code
-dotnet_diagnostic.IDE0036.severity = warning # Modifier order
-dotnet_diagnostic.IDE0044.severity = warning # Make field readonly
-dotnet_diagnostic.IDE0051.severity = warning # Unused private member
-dotnet_diagnostic.IDE0052.severity = warning # Unread private member
-dotnet_diagnostic.IDE0055.severity = warning # Formatting
-dotnet_diagnostic.IDE0059.severity = warning # Unnecessary assignment
-dotnet_diagnostic.IDE0060.severity = warning # Unused parameter
-dotnet_diagnostic.IDE0161.severity = warning # File-scoped namespace
+# Unreachable code
+dotnet_diagnostic.IDE0035.severity = warning
+# Modifier order
+dotnet_diagnostic.IDE0036.severity = warning
+# Make field readonly
+dotnet_diagnostic.IDE0044.severity = warning
+# Unused private member
+dotnet_diagnostic.IDE0051.severity = warning
+# Unread private member
+dotnet_diagnostic.IDE0052.severity = warning
+# Formatting
+dotnet_diagnostic.IDE0055.severity = warning
+# Unnecessary assignment
+dotnet_diagnostic.IDE0059.severity = warning
+# Unused parameter
+dotnet_diagnostic.IDE0060.severity = warning
+# File-scoped namespace
+dotnet_diagnostic.IDE0161.severity = warning
