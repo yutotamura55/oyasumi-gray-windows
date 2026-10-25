@@ -85,14 +85,21 @@ PowerShell 7 がある場合は `pwsh -NoProfile -File .\scripts\check.ps1` で�
 
 このスクリプトは次の順に実行し、1つでも失敗すると止まります。
 
-1. 書式の検査：`dotnet format --verify-no-changes`。書式のずれを見つけたら、`dotnet format OyasumiGray.sln` で直せます。
+1. 書式の検査：`dotnet format whitespace --verify-no-changes`。書式のずれを見つけたら、`dotnet format OyasumiGray.sln` で直せます。
 2. ビルドとコード分析：`dotnet build -c Release`。.NET のコード分析とコードスタイルの規則に違反するとビルドが失敗します。
 3. Core のテスト。
 4. 設定画面のテスト（Windows だけ。ほかの OS では警告を表示して省略します）。
 
 規則の設定は `.editorconfig` と `Directory.Build.props` にあります。
-コード分析の水準は `AnalysisLevel` で .NET 10 の既定に固定しています。
-`.editorconfig` では、既存のコードが守っているコードスタイルの規則だけをエラーにしています。
+`Directory.Build.props` の `TreatWarningsAsErrors` により、警告はすべてビルドエラーになります。
+コード分析（CA で始まる規則）の水準は、`AnalysisLevel` で .NET 10 の既定に固定しています。
+コードスタイル（IDE で始まる規則）と書式の判定は、インストールされている SDK の版によって変わることがあります。
+`.editorconfig` では、導入時点のコードが守っていたコードスタイルの規則を選んで有効にしています。
+
+ソースファイルの改行コードは LF に統一しています（`.gitattributes` と `.editorconfig`）。
+この設定より前に Windows で clone し、改行コードが CRLF のままのファイルがあると、書式の検査が失敗します。
+その場合は `dotnet format OyasumiGray.sln` を一度実行すると、改行コードが LF に変わります。
+Git 上の内容は変わらないため、この操作でコミットすべき差分は出ません。
 
 GitHub Actions は PR と `main` への push のたびに、Windows の runner で同じスクリプトを実行します。
 
