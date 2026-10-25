@@ -92,7 +92,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _timer.Stop();
         if (_exiting) return;
-        if (SessionAvailable && !_settingsProblem && !_manualHold && _controller.State is not (EffectState.Conflict or EffectState.Fault))
+        if (AutoSwitch.FindBlock(SessionAvailable, _controller.State, _settingsProblem, _manualHold) == AutoSwitchBlock.None)
         {
             try
             {
@@ -100,7 +100,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _lastSnapshot = Schedule.Evaluate(_settings, now, TimeZoneInfo.Local, _pauseUntil);
                 if (_lastSnapshot.Ratio > 0) _controller.Apply(_lastSnapshot.Ratio);
                 else _controller.Release();
-                if (_controller.State is not (EffectState.Conflict or EffectState.Fault) && _lastSnapshot.Phase != SchedulePhase.Disabled)
+                // Applying can fail with a conflict or fault; re-check before scheduling the next evaluation.
+                if (AutoSwitch.FindBlock(SessionAvailable, _controller.State, _settingsProblem, _manualHold) == AutoSwitchBlock.None &&
+                    _lastSnapshot.Phase != SchedulePhase.Disabled)
                 {
                     var untilBoundary = (_lastSnapshot.NextBoundary - now).TotalMilliseconds;
                     _timer.Interval = (int)Math.Clamp(untilBoundary, 100, _lastSnapshot.Phase == SchedulePhase.Fading ? 1000 : 30_000);

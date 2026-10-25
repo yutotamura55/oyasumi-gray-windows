@@ -95,6 +95,14 @@ var disabledStatus = TrayStatusPresentation.Create(
 Check(disabledStatus.FormStatusText == "現在の状態: 自動切替はオフ", "無効化中は次の切替を表示しない");
 Console.WriteLine("PASS 次の切替時刻の表示条件");
 
+Check(AutoSwitch.FindBlock(true, EffectState.Applied, false, false) == AutoSwitchBlock.None, "止める理由がなければ自動適用する");
+Check(AutoSwitch.FindBlock(true, EffectState.Idle, false, false) == AutoSwitchBlock.None, "未適用でも止める理由がなければ自動適用する");
+Check(AutoSwitch.FindBlock(false, EffectState.Applied, false, false) == AutoSwitchBlock.SessionUnavailable, "ロック中は自動適用しない");
+Check(AutoSwitch.FindBlock(true, EffectState.Fault, false, false) == AutoSwitchBlock.Fault, "色変更の異常時は自動適用しない");
+Check(AutoSwitch.FindBlock(true, EffectState.Idle, true, false) == AutoSwitchBlock.SettingsProblem, "設定エラー時は自動適用しない");
+Check(AutoSwitch.FindBlock(true, EffectState.Idle, false, true) == AutoSwitchBlock.ManualHold, "手動停止中は自動適用しない");
+Console.WriteLine("PASS 止める理由があるときは自動適用しない");
+
 static void Check(bool condition, string message)
 {
     if (!condition) throw new Exception(message);
