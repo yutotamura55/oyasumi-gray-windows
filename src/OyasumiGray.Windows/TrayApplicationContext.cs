@@ -92,7 +92,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     {
         _timer.Stop();
         if (_exiting) return;
-        if (SessionAvailable && !_settingsProblem && !_manualHold && _controller.State is not (EffectState.Conflict or EffectState.Fault))
+        if (AutoSwitch.FindBlock(SessionAvailable, _controller.State, _settingsProblem, _manualHold) == AutoSwitchBlock.None)
         {
             try
             {

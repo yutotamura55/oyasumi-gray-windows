@@ -120,6 +120,21 @@ foreach (var (session, effect, error, problem, hold, snapshot) in inputs)
 }
 Console.WriteLine($"PASS 状態表示が変更前の実装と一致する（{inputs.Count} 通り）");
 
+// The condition TrayApplicationContext.Evaluate used before Issue #12 to decide whether to apply the schedule.
+var gateInputs = (
+    from session in bools
+    from effect in Enum.GetValues<EffectState>()
+    from problem in bools
+    from hold in bools
+    select (session, effect, problem, hold)).ToList();
+foreach (var (session, effect, problem, hold) in gateInputs)
+{
+    var legacyApplies = session && !problem && !hold && effect is not (EffectState.Conflict or EffectState.Fault);
+    Check((AutoSwitch.FindBlock(session, effect, problem, hold) == AutoSwitchBlock.None) == legacyApplies,
+        $"自動適用の判定が変更前と異なる: session={session} effect={effect} settings={problem} hold={hold}");
+}
+Console.WriteLine($"PASS 自動適用の判定が変更前の条件と一致する（{gateInputs.Count} 通り）");
+
 static void Check(bool condition, string message)
 {
     if (!condition) throw new Exception(message);
