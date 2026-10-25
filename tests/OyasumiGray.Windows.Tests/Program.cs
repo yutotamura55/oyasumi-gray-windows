@@ -95,7 +95,69 @@ var disabledStatus = TrayStatusPresentation.Create(
 Check(disabledStatus.FormStatusText == "現在の状態: 自動切替はオフ", "無効化中は次の切替を表示しない");
 Console.WriteLine("PASS 次の切替時刻の表示条件");
 
+// Issue #12: compare every input combination with the implementation before the refactoring.
+var snapshots = new List<ScheduleSnapshot?> { null };
+foreach (var phase in Enum.GetValues<SchedulePhase>())
+{
+    snapshots.Add(new ScheduleSnapshot(.5, phase, DateTimeOffset.MaxValue));
+    snapshots.Add(new ScheduleSnapshot(.5, phase, new DateTimeOffset(2026, 10, 26, 22, 0, 0, TimeSpan.Zero)));
+}
+var bools = new[] { true, false };
+var inputs = (
+    from session in bools
+    from effect in Enum.GetValues<EffectState>()
+    from error in new[] { null, "API error", new string('x', 50) }
+    from problem in bools
+    from hold in bools
+    from snapshot in snapshots
+    select (session, effect, error, problem, hold, snapshot)).ToList();
+foreach (var (session, effect, error, problem, hold, snapshot) in inputs)
+{
+    var actual = TrayStatusPresentation.Create(session, effect, error, problem, hold, snapshot);
+    var expected = LegacyCreate(session, effect, error, problem, hold, snapshot);
+    Check(actual == expected,
+        $"変更前と表示が異なる: session={session} effect={effect} error={error} settings={problem} hold={hold} snapshot={snapshot}");
+}
+Console.WriteLine($"PASS 状態表示が変更前の実装と一致する（{inputs.Count} 通り）");
+
 static void Check(bool condition, string message)
 {
     if (!condition) throw new Exception(message);
+}
+
+// Copy of TrayStatusPresentation.Create before Issue #12, kept only to compare behavior.
+static TrayStatusPresentation LegacyCreate(
+    bool sessionAvailable,
+    EffectState effectState,
+    string? effectError,
+    bool settingsProblem,
+    bool manualHold,
+    ScheduleSnapshot? snapshot)
+{
+    string status;
+    if (!sessionAvailable) status = "ロックまたはスリープ中";
+    else if (effectState == EffectState.Conflict) status = "競合のため停止。ほかの画面の色変更を確認してください。";
+    else if (effectState == EffectState.Fault) status = $"適用できません: {effectError}";
+    else if (settingsProblem) status = "設定を読み取れません。確認して保存してください。";
+    else if (manualHold) status = "手動で解除しました。自動切替は停止中です。";
+    else status = snapshot?.Phase switch
+    {
+        SchedulePhase.Disabled => "自動切替はオフ",
+        SchedulePhase.Waiting => "開始前",
+        SchedulePhase.Fading => $"移行中・白黒度{snapshot.Ratio:P0}",
+        SchedulePhase.Gray => "白黒表示中",
+        SchedulePhase.Paused => "一時解除中",
+        _ => "開始前"
+    };
+
+    var statusText = "現在の状態: " + status;
+    if (snapshot is { Phase: not SchedulePhase.Disabled } && snapshot.NextBoundary != DateTimeOffset.MaxValue)
+        statusText += $"\n次の切替: {snapshot.NextBoundary.ToLocalTime():MM/dd HH:mm}";
+
+    var canPause = sessionAvailable && !manualHold && !settingsProblem &&
+        (effectState == EffectState.Applied || snapshot?.Phase == SchedulePhase.Paused);
+    var canResume = sessionAvailable && (snapshot?.Phase == SchedulePhase.Paused || manualHold ||
+        effectState is EffectState.Conflict or EffectState.Fault);
+    var canForceClear = effectState == EffectState.Conflict;
+    return new(statusText, status.Length > 40 ? status[..40] + "…" : status, canPause, canResume, canForceClear);
 }
