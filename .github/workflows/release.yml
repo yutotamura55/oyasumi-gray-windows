@@ -12,15 +12,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  release:
     # The package is a Windows executable, and the settings screen test runs only on Windows.
     runs-on: windows-latest
     timeout-minutes: 20
+    permissions:
+      # Needed only by the last step. The ZIP is not uploaded as an Actions artifact,
+      # because anyone can download artifacts of a public repository before the release is published.
+      contents: write
     steps:
       - uses: actions/checkout@v7
         with:
           # The full history is needed to check that the tag points to a commit on main.
           fetch-depth: 0
+          # Keep the write token out of .git/config while repository code runs.
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
@@ -37,38 +42,21 @@ jobs:
         shell: pwsh
         # build-package.ps1 rejects a version that does not look like 1.2.3 or 1.2.3-beta.1.
         run: ./scripts/build-package.ps1 -Version ($env:GITHUB_REF_NAME.Substring(1))
-      - uses: actions/upload-artifact@v7
-        with:
-          name: package
-          path: artifacts/OyasumiGray.Windows-win-x64.zip
-          if-no-files-found: error
-          # The release job attaches the ZIP to the release right after this job.
-          retention-days: 1
-
-  release:
-    # Only this job can write to the repository, and it runs no repository code.
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: package
       - name: Create a draft release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
         run: |
           # A re-run must not add a second draft for the same tag.
-          existing=$(gh release list --limit 100 --json tagName --jq "map(select(.tagName == \"$GITHUB_REF_NAME\")) | length")
-          if [ "$existing" -ne 0 ]; then
-            echo "A release for $GITHUB_REF_NAME already exists. Delete it on the Releases page before running again." >&2
-            exit 1
-          fi
-          prerelease=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" OyasumiGray.Windows-win-x64.zip \
-            --draft --verify-tag --generate-notes "${prerelease[@]}" \
-            --title "おやすみグレー for Windows $GITHUB_REF_NAME"
+          $tags = @(gh release list --limit 100 --json tagName --jq '.[].tagName')
+          if ($LASTEXITCODE -ne 0) { throw "gh release list failed with exit code $LASTEXITCODE" }
+          if ($tags -ccontains $env:GITHUB_REF_NAME) {
+              throw "A release for $env:GITHUB_REF_NAME already exists. Delete it on the Releases page before running again."
+          }
+          $arguments = @(
+              'release', 'create', $env:GITHUB_REF_NAME, 'artifacts/OyasumiGray.Windows-win-x64.zip',
+              '--draft', '--verify-tag', '--generate-notes', '--title', "おやすみグレー for Windows $env:GITHUB_REF_NAME"
+          )
+          if ($env:GITHUB_REF_NAME.Contains('-')) { $arguments += '--prerelease' }
+          gh @arguments
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
