@@ -94,7 +94,10 @@ internal sealed class SettingsForm : Form
 
     private static DateTimePicker CreateTimePicker() => new()
     {
-        Format = DateTimePickerFormat.Custom, CustomFormat = "HH:mm", ShowUpDown = true, Width = 100
+        Format = DateTimePickerFormat.Custom,
+        CustomFormat = "HH:mm",
+        ShowUpDown = true,
+        Width = 100
     };
 
     private static void AddRow(TableLayoutPanel panel, string label, Control control)
