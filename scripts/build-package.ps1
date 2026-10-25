@@ -1,3 +1,7 @@
+# Version sets the file and product version of the executable, for example 0.1.0.
+# Without it, the .NET SDK default (1.0.0) is used.
+param([string] $Version)
+
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -9,7 +13,9 @@ $publishDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("oyasumi-gray-"
 
 try {
     New-Item -ItemType Directory -Path $artifacts -Force | Out-Null
-    dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o $publishDirectory
+    $publishArguments = @($project, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-o', $publishDirectory)
+    if ($Version) { $publishArguments += "-p:Version=$Version" }
+    dotnet publish @publishArguments
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
 
     Copy-Item (Join-Path $repositoryRoot 'LICENSE') $publishDirectory

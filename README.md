@@ -12,9 +12,21 @@ Windows 11 x64 の通常の SDR デスクトップを対象に設計していま
 
 ## 入手と起動
 
-検証を終えた ZIP は [GitHub Releases][releases] の添付ファイルとして配布する予定です。
-現在は Release がありません。
-ソースから試す場合は、Windows 11 x64 と [.NET 10 SDK][dotnet-sdk] を用意してください。
+### Release から入手する
+
+ビルド済みの ZIP は [GitHub Releases][releases] の添付ファイルとして配布します。
+最初の Release は、複数モニターでの確認を終えてから公開する予定で、現在はまだありません。
+Release の ZIP は .NET ランタイムを含むため、.NET を別にインストールする必要はありません。
+
+このアプリには電子署名がありません。
+ダウンロードした `OyasumiGray.Windows.exe` を開くと、
+「Windows によって PC が保護されました」という Microsoft Defender SmartScreen の警告が表示されることがあります。
+その場合は「詳細情報」を選び、表示される「実行」を押すと起動できます。
+Windows 11 のスマート アプリ コントロールがオンの PC では、署名のないアプリとして起動がブロックされることがあります。
+
+### ソースからパッケージを作る
+
+Windows 11 x64 と [.NET 10 SDK][dotnet-sdk] を用意してください。
 リポジトリのルートで PowerShell から次を実行します。
 
 ```powershell
@@ -25,7 +37,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-package.
 PC 全体の設定は変更しません。
 
 `artifacts/OyasumiGray.Windows-win-x64.zip` が作成されます。
-ZIP を任意のフォルダーに展開し、`OyasumiGray.Windows.exe` を実行してください。
+GitHub Releases で ZIP を公開する手順は [Release の作り方](docs/release.md) にあります。
+
+### 起動と初期設定
+
+Release から入手した ZIP、またはソースから作った ZIP を任意のフォルダーに展開し、
+`OyasumiGray.Windows.exe` を実行してください。
 
 初回起動時に設定画面が開きます。
 開始時刻、移行時間、復帰時刻を確認し、「自動切替を有効にする」を選んで保存してください。
