@@ -119,6 +119,7 @@ PowerShell 7 がある場合は `pwsh -NoProfile -File .\scripts\check.ps1` で�
 Git 上の内容は変わらないため、この操作でコミットすべき差分は出ません。
 
 GitHub Actions は PR と `main` への push のたびに、Windows の runner で同じスクリプトを実行します。
+`v` で始まるタグを push したときも同じスクリプトを実行し、ZIP を添付した Release の下書きを作ります（[Release の作り方](docs/release.md)）。
 
 ## ライセンス
 
