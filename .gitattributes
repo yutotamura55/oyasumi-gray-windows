@@ -1,0 +1,6 @@
+# Keep LF on Windows checkouts so dotnet format matches .editorconfig (end_of_line = lf).
+* text=auto eol=lf
+*.sln text eol=lf
+*.png binary
+*.ico binary
+*.zip binary
