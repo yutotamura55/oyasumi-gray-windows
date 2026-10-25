@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- Pin the rule set so an SDK update does not add new build errors. -->
+    <AnalysisLevel>10.0</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+</Project>

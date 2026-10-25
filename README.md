@@ -73,6 +73,29 @@ Core のテストは OS 非依存です。
 設定画面のテストと実際の画面への適用確認は Windows で行ってください。
 ZIP の作成には Windows PowerShell を使用します。
 
+## コミット前の検査
+
+コミットの前に、リポジトリのルートで PowerShell から次を実行してください。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\check.ps1
+```
+
+PowerShell 7 がある場合は `pwsh -NoProfile -File .\scripts\check.ps1` でも実行できます。CI はこちらを使います。
+
+このスクリプトは次の順に実行し、1つでも失敗すると止まります。
+
+1. 書式の検査：`dotnet format --verify-no-changes`。書式のずれを見つけたら、`dotnet format OyasumiGray.sln` で直せます。
+2. ビルドとコード分析：`dotnet build -c Release`。.NET のコード分析とコードスタイルの規則に違反するとビルドが失敗します。
+3. Core のテスト。
+4. 設定画面のテスト（Windows だけ。ほかの OS では警告を表示して省略します）。
+
+規則の設定は `.editorconfig` と `Directory.Build.props` にあります。
+コード分析の水準は `AnalysisLevel` で .NET 10 の既定に固定しています。
+`.editorconfig` では、既存のコードが守っているコードスタイルの規則だけをエラーにしています。
+
+GitHub Actions は PR と `main` への push のたびに、Windows の runner で同じスクリプトを実行します。
+
 ## ライセンス
 
 [MIT License](LICENSE) です。
