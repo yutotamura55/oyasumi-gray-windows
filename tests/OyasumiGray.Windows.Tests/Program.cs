@@ -99,8 +99,11 @@ Console.WriteLine("PASS 次の切替時刻の表示条件");
 var snapshots = new List<ScheduleSnapshot?> { null };
 foreach (var phase in Enum.GetValues<SchedulePhase>())
 {
-    snapshots.Add(new ScheduleSnapshot(.5, phase, DateTimeOffset.MaxValue));
-    snapshots.Add(new ScheduleSnapshot(.5, phase, new DateTimeOffset(2026, 10, 26, 22, 0, 0, TimeSpan.Zero)));
+    foreach (var ratio in new[] { 0, .005, .5, .995, 1 })
+    {
+        snapshots.Add(new ScheduleSnapshot(ratio, phase, DateTimeOffset.MaxValue));
+        snapshots.Add(new ScheduleSnapshot(ratio, phase, new DateTimeOffset(2026, 10, 26, 22, 0, 0, TimeSpan.Zero)));
+    }
 }
 var bools = new[] { true, false };
 var inputs = (

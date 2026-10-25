@@ -41,8 +41,7 @@ internal sealed record TrayStatusPresentation(
             AutoSwitchBlock.Fault => $"適用できません: {effectError}",
             AutoSwitchBlock.SettingsProblem => "設定を読み取れません。確認して保存してください。",
             AutoSwitchBlock.ManualHold => "手動で解除しました。自動切替は停止中です。",
-            AutoSwitchBlock.None => ScheduleStatus(snapshot),
-            var block => throw new ArgumentOutOfRangeException(nameof(block), block, null)
+            _ => ScheduleStatus(snapshot) // AutoSwitchBlock.None
         };
 
         var statusText = "現在の状態: " + status;
