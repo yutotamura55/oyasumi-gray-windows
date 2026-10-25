@@ -29,7 +29,8 @@ public static class Schedule
                 return new(0, SchedulePhase.Paused, pause < restore ? pause : restore) { RestoreBoundary = restore };
             if (now < fadeEnd)
                 return new(Math.Clamp((now - start).TotalSeconds / (settings.FadeMinutes * 60d), 0, 1), SchedulePhase.Fading,
-                    fadeEnd < restore ? fadeEnd : restore) { RestoreBoundary = restore };
+                    fadeEnd < restore ? fadeEnd : restore)
+                { RestoreBoundary = restore };
             return new(1, SchedulePhase.Gray, restore) { RestoreBoundary = restore };
         }
 
