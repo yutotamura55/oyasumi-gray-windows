@@ -47,7 +47,7 @@ ZIP の名前は版によらず `OyasumiGray.Windows-win-x64.zip` とする。
    「Draft」と表示された Release から ZIP をダウンロードし、Windows で展開して起動できることを確かめる。
 5. 下書きの右上の鉛筆アイコンから編集画面を開く。Release ノートに、確認済みの範囲と未確認の範囲（[検証状況](verification.md) の要約）を書き足す。
 6. 編集画面の下の「Publish release」を押して公開する。
-7. 最初の Release を公開したときは、README の「入手と起動」から「現在はまだありません」の文を削除する PR を作る。
+7. 最初の Release を公開したときは、README の「入手と起動」から「現在は Release がまだありません。」の文を削除する PR を作る。
 
 ## 失敗したとき
 
