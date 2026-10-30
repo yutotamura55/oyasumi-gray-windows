@@ -12,6 +12,7 @@ var cases = new (string Name, Action Run)[]
     ("停止時に自分の効果だけ解除", OwnedRelease),
     ("設定を保存し壊れた入力を拒否", SettingsStorage),
     ("微小な変化で誤って競合にしない", TinyFadeSteps),
+    ("移行時間と復帰時刻を固定する", FixedSchedule),
     ("競合を検出したら終了時に他者の値を消さない", ConflictRelease),
 };
 
@@ -121,6 +122,17 @@ static void SettingsStorage()
         catch (InvalidDataException) { }
     }
     finally { if (Directory.Exists(path)) Directory.Delete(path, true); }
+}
+
+static void FixedSchedule()
+{
+    var settings = AppSettings.ForStart(true, new TimeOnly(21, 30));
+    Check(settings == new AppSettings(true, new TimeOnly(21, 30), 60, new TimeOnly(4, 0)), "fixed fade and restore");
+    Check(AppSettings.Default == AppSettings.ForStart(false, new TimeOnly(22, 0)), "default start");
+    Check(AppSettings.ForStart(true, new TimeOnly(2, 59)).Validate() is null, "start before the last valid minute");
+    foreach (var start in new[] { new TimeOnly(3, 0), new TimeOnly(3, 30), new TimeOnly(4, 0) })
+        Check(AppSettings.ForStart(true, start).Validate() == "開始時刻は 03:00 より前か、04:00 より後にしてください。", $"start {start}");
+    Check(AppSettings.ForStart(true, new TimeOnly(4, 1)).Validate() is null, "start just after restore");
 }
 
 static void TinyFadeSteps()

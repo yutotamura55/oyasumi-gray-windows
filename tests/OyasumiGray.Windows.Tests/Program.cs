@@ -30,6 +30,33 @@ if (form.VerticalScroll.Value != scrollY)
 
 Console.WriteLine("PASS 同じ状態の再通知でスクロール位置を保つ");
 
+form.SetSettings(new AppSettings(true, new TimeOnly(21, 30), 30, new TimeOnly(7, 0)));
+Check(form.ReadSettings() == AppSettings.ForStart(true, new TimeOnly(21, 30)), "画面からは開始時刻とオン・オフだけを読む");
+Check(form.Preview.Text.Contains("21:30") && form.Preview.Text.Contains("22:30") && form.Preview.Text.Contains("04:00"), "予告は固定の時刻を示す");
+Console.WriteLine("PASS 設定画面は開始時刻とオン・オフだけを扱う");
+
+// The real Run key is never touched: these checks use a temporary key under the test's own name.
+var testKey = $@"Software\OyasumiGray.Tests\{Guid.NewGuid():N}";
+try
+{
+    var thisCopy = new StartupRegistration(testKey, @"C:\apps\new\OyasumiGray.Windows.exe");
+    Check(ReadRegistration(testKey) is null, "初期状態は未登録");
+    thisCopy.Set(true);
+    Check(ReadRegistration(testKey) == "\"C:\\apps\\new\\OyasumiGray.Windows.exe\"", "今の実行ファイルを引用符付きで登録する");
+    new StartupRegistration(testKey, @"C:\apps\other\OyasumiGray.Windows.exe").Set(true);
+    Check(ReadRegistration(testKey) == "\"C:\\apps\\other\\OyasumiGray.Windows.exe\"", "最後に起動したコピーが登録される");
+    thisCopy.Set(false);
+    Check(ReadRegistration(testKey) is null, "オフにすると登録先によらず削除する");
+    thisCopy.Set(false);
+    var tooLong = new StartupRegistration(testKey, "C:\\" + new string('a', 260) + ".exe");
+    var rejected = false;
+    try { tooLong.Set(true); }
+    catch (InvalidOperationException) { rejected = true; }
+    Check(rejected && ReadRegistration(testKey) is null, "長すぎるパスは登録しない");
+}
+finally { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\OyasumiGray.Tests", throwOnMissingSubKey: false); }
+Console.WriteLine("PASS ログオン起動の登録は自動切替に従う");
+
 var gray = new ScheduleSnapshot(1, SchedulePhase.Gray, DateTimeOffset.MaxValue);
 var conflict = TrayStatusPresentation.Create(
     sessionAvailable: true, effectState: EffectState.Conflict, effectError: null,
@@ -102,6 +129,12 @@ Check(AutoSwitch.FindBlock(true, EffectState.Fault, false, false) == AutoSwitchB
 Check(AutoSwitch.FindBlock(true, EffectState.Idle, true, false) == AutoSwitchBlock.SettingsProblem, "設定エラー時は自動適用しない");
 Check(AutoSwitch.FindBlock(true, EffectState.Idle, false, true) == AutoSwitchBlock.ManualHold, "手動停止中は自動適用しない");
 Console.WriteLine("PASS 止める理由があるときは自動適用しない");
+
+static string? ReadRegistration(string keyPath)
+{
+    using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(keyPath);
+    return key?.GetValue("OyasumiGray.Windows") as string;
+}
 
 static void Check(bool condition, string message)
 {

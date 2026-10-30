@@ -6,6 +6,7 @@ namespace OyasumiGray.Windows;
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly SettingsStore _store = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OyasumiGray.Windows"));
+    private readonly StartupRegistration _startup = StartupRegistration.ForThisApp();
     private readonly MagnificationEffect _effect;
     private readonly EffectController _controller;
     private readonly SettingsForm _form;
@@ -32,7 +33,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         bool showAtStart = !_store.HasSettings;
         try
         {
-            _settings = _store.LoadSettings();
+            var loaded = _store.LoadSettings();
+            _settings = AppSettings.ForStart(loaded.Enabled, loaded.Start);
             _pauseUntil = _store.LoadPause();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -48,8 +50,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _controller.CheckInitial();
         _form = new SettingsForm(_settings);
         _ = _form.Handle; // Create the handle so OS event callbacks can marshal to the UI thread.
-        try { _form.LaunchAtLogin.Checked = StartupRegistration.IsRegistered(); }
-        catch (Exception ex) { Log("startup-read", ex); }
         _form.SaveButton.Click += async (_, _) => await SaveSettingsAsync();
         _form.PauseButton.Click += async (_, _) => await PauseAsync();
         _form.ResumeButton.Click += async (_, _) => await ResumeAsync();
@@ -83,6 +83,13 @@ internal sealed class TrayApplicationContext : ApplicationContext
         SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.SessionSwitch += OnSessionSwitch;
+
+        if (_settings.Enabled)
+        {
+            // Registering at every start moves the logon entry to this copy after an update to another folder.
+            try { _startup.Set(true); }
+            catch (Exception ex) { ShowPersistenceError("ログオン起動", ex); }
+        }
 
         Evaluate();
         if (showAtStart || _controller.State is EffectState.Conflict or EffectState.Fault) ShowSettings();
@@ -156,7 +163,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _settingsProblem = false;
             }
             Evaluate();
-            StartupRegistration.Set(_form.LaunchAtLogin.Checked);
+            _startup.Set(requested.Enabled);
         }
         catch (Exception ex)
         {
@@ -207,6 +214,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             await _store.SaveSettingsAsync(_settings);
             await _store.SavePauseAsync(null);
+            _startup.Set(false);
             _settingsProblem = false;
             Evaluate();
         }
@@ -225,8 +233,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowSettings()
     {
-        try { _form.LaunchAtLogin.Checked = StartupRegistration.IsRegistered(); }
-        catch (Exception ex) { Log("startup-read", ex); }
         _form.Show();
         _form.WindowState = FormWindowState.Normal;
         _form.Activate();

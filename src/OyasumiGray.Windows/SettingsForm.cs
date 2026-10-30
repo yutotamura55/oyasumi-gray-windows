@@ -5,10 +5,7 @@ namespace OyasumiGray.Windows;
 internal sealed class SettingsForm : Form
 {
     private readonly DateTimePicker _start = CreateTimePicker();
-    private readonly DateTimePicker _restore = CreateTimePicker();
-    private readonly NumericUpDown _duration = new() { Minimum = 1, Maximum = 360, Value = 60, Width = 100 };
     private readonly CheckBox _enabled = new() { Text = "自動切替を有効にする", AutoSize = true };
-    public CheckBox LaunchAtLogin { get; } = new() { Text = "Windows へのログオン時に起動", AutoSize = true };
     public Label Status { get; } = new() { AutoSize = true, MaximumSize = new Size(460, 0), AccessibleName = "現在の状態" };
     public Label Preview { get; } = new() { AutoSize = true, MaximumSize = new Size(460, 0) };
     public Button SaveButton { get; } = new() { Text = "設定を保存", AutoSize = true };
@@ -21,8 +18,8 @@ internal sealed class SettingsForm : Form
     public SettingsForm(AppSettings settings)
     {
         Text = "おやすみグレー for Windows";
-        ClientSize = new Size(530, 490);
-        MinimumSize = new Size(440, 430);
+        ClientSize = new Size(530, 400);
+        MinimumSize = new Size(440, 340);
         AutoScroll = true;
         StartPosition = FormStartPosition.CenterScreen;
         Font = SystemFonts.MessageBoxFont;
@@ -36,10 +33,7 @@ internal sealed class SettingsForm : Form
         AddWide(root, Status);
         AddWide(root, _enabled);
         AddRow(root, "薄れ始める時刻", _start);
-        AddRow(root, "白黒になるまで（分）", _duration);
-        AddRow(root, "カラーに戻る時刻", _restore);
         AddWide(root, Preview);
-        AddWide(root, LaunchAtLogin);
         AddWide(root, new Label { Text = "ブラウザ拡張版も有効な場合、Webページでは効果が重なります。", AutoSize = true, MaximumSize = new Size(460, 0) });
 
         var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Width = 470 };
@@ -47,12 +41,8 @@ internal sealed class SettingsForm : Form
         AddWide(root, actions);
         AddWide(root, new Label { Text = "この画面を閉じても通知領域で動作します。", AutoSize = true });
 
-        foreach (var control in new Control[] { _enabled, _start, _duration, _restore })
-        {
-            if (control is DateTimePicker picker) picker.ValueChanged += (_, _) => RefreshPreview();
-            else if (control is NumericUpDown numeric) numeric.ValueChanged += (_, _) => RefreshPreview();
-            else if (control is CheckBox check) check.CheckedChanged += (_, _) => RefreshPreview();
-        }
+        _enabled.CheckedChanged += (_, _) => RefreshPreview();
+        _start.ValueChanged += (_, _) => RefreshPreview();
         SetSettings(settings);
     }
 
@@ -60,13 +50,10 @@ internal sealed class SettingsForm : Form
     {
         _enabled.Checked = settings.Enabled;
         _start.Value = DateTime.Today.Add(settings.Start.ToTimeSpan());
-        _duration.Value = settings.FadeMinutes;
-        _restore.Value = DateTime.Today.Add(settings.Restore.ToTimeSpan());
         RefreshPreview();
     }
 
-    public AppSettings ReadSettings() => new(_enabled.Checked, TimeOnly.FromDateTime(_start.Value), (int)_duration.Value,
-        TimeOnly.FromDateTime(_restore.Value));
+    public AppSettings ReadSettings() => AppSettings.ForStart(_enabled.Checked, TimeOnly.FromDateTime(_start.Value));
 
     public void RefreshPreview()
     {
