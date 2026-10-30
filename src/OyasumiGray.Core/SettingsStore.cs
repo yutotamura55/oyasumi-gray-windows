@@ -34,8 +34,10 @@ public sealed class SettingsStore(string directory)
                 !TimeOnly.TryParseExact(data.StartTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start) ||
                 !TimeOnly.TryParseExact(data.RestoreTime, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var restore))
                 throw new InvalidDataException("設定ファイルの形式が不正です。");
-            var settings = new AppSettings(data.Enabled, start, data.FadeDurationMinutes, restore);
-            if (settings.Validate() is not null) throw new InvalidDataException("設定値が範囲外です。");
+            var stored = new AppSettings(data.Enabled, start, data.FadeDurationMinutes, restore);
+            // The fade and restore time are fixed; older files may hold other values.
+            var settings = AppSettings.ForStart(data.Enabled, start);
+            if (stored.Validate() is not null || settings.Validate() is not null) throw new InvalidDataException("設定値が範囲外です。");
             return settings;
         }
         catch (JsonException ex) { throw new InvalidDataException("設定ファイルを読み取れません。", ex); }

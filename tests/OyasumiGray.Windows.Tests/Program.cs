@@ -55,7 +55,7 @@ try
     Check(rejected && ReadRegistration(testKey) is null, "長すぎるパスは登録しない");
 }
 finally { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\OyasumiGray.Tests", throwOnMissingSubKey: false); }
-Console.WriteLine("PASS ログオン起動の登録は自動切替に従う");
+Console.WriteLine("PASS ログオン起動の登録を書き込み、上書きし、削除する");
 
 var gray = new ScheduleSnapshot(1, SchedulePhase.Gray, DateTimeOffset.MaxValue);
 var conflict = TrayStatusPresentation.Create(

@@ -33,8 +33,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         bool showAtStart = !_store.HasSettings;
         try
         {
-            var loaded = _store.LoadSettings();
-            _settings = AppSettings.ForStart(loaded.Enabled, loaded.Start);
+            _settings = _store.LoadSettings();
             _pauseUntil = _store.LoadPause();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
@@ -84,15 +83,22 @@ internal sealed class TrayApplicationContext : ApplicationContext
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.SessionSwitch += OnSessionSwitch;
 
-        if (_settings.Enabled)
-        {
-            // Registering at every start moves the logon entry to this copy after an update to another folder.
-            try { _startup.Set(true); }
-            catch (Exception ex) { ShowPersistenceError("ログオン起動", ex); }
-        }
-
         Evaluate();
+        // Registering at every start moves the logon entry to this copy after an update to another folder.
+        // A settings problem says nothing about what the user wants, so the entry stays as it is.
+        if (!_settingsProblem) SyncStartupAtLaunch();
         if (showAtStart || _controller.State is EffectState.Conflict or EffectState.Fault) ShowSettings();
+    }
+
+    private void SyncStartupAtLaunch()
+    {
+        try { _startup.Set(_settings.Enabled); }
+        catch (Exception ex)
+        {
+            Log("startup", ex);
+            MessageBox.Show($"Windows へのログオン時に自動で起動する設定を更新できませんでした。\n{ex.Message}",
+                "おやすみグレー for Windows", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void Evaluate()
@@ -214,7 +220,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             await _store.SaveSettingsAsync(_settings);
             await _store.SavePauseAsync(null);
-            _startup.Set(false);
+            // Read after the awaits: a save that finished meanwhile may have turned switching back on.
+            _startup.Set(_settings.Enabled);
             _settingsProblem = false;
             Evaluate();
         }

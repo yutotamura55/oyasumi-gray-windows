@@ -13,6 +13,7 @@ var cases = new (string Name, Action Run)[]
     ("設定を保存し壊れた入力を拒否", SettingsStorage),
     ("微小な変化で誤って競合にしない", TinyFadeSteps),
     ("移行時間と復帰時刻を固定する", FixedSchedule),
+    ("読み込んだ設定に固定値を使う", LoadedSettingsUseFixedSchedule),
     ("競合を検出したら終了時に他者の値を消さない", ConflictRelease),
 };
 
@@ -112,8 +113,9 @@ static void SettingsStorage()
     {
         var store = new SettingsStore(path);
         Check(store.LoadSettings() == AppSettings.Default, "initial defaults");
-        store.SaveSettingsAsync(Defaults()).GetAwaiter().GetResult();
-        Check(store.LoadSettings() == Defaults(), "round trip");
+        var saved = AppSettings.ForStart(true, new TimeOnly(22, 0));
+        store.SaveSettingsAsync(saved).GetAwaiter().GetResult();
+        Check(store.LoadSettings() == saved, "round trip");
         File.WriteAllText(Path.Combine(path, "settings.json"), "{\"schemaVersion\":2}");
         try { store.LoadSettings(); throw new Exception("unsupported schema accepted"); }
         catch (InvalidDataException) { }
@@ -122,6 +124,25 @@ static void SettingsStorage()
         catch (InvalidDataException) { }
     }
     finally { if (Directory.Exists(path)) Directory.Delete(path, true); }
+}
+
+static void LoadedSettingsUseFixedSchedule()
+{
+    var directory = Path.Combine(Path.GetTempPath(), "oyasumi-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var store = new SettingsStore(directory);
+        var path = Path.Combine(directory, "settings.json");
+        File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"21:30","fadeDurationMinutes":30,"restoreTime":"07:00"}""");
+        Check(store.LoadSettings() == AppSettings.ForStart(true, new TimeOnly(21, 30)), "old fade and restore are replaced");
+        File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"03:30","fadeDurationMinutes":60,"restoreTime":"07:00"}""");
+        var rejected = false;
+        try { store.LoadSettings(); }
+        catch (InvalidDataException) { rejected = true; }
+        Check(rejected, "a start that is invalid with the fixed schedule is rejected");
+    }
+    finally { Directory.Delete(directory, true); }
 }
 
 static void FixedSchedule()
