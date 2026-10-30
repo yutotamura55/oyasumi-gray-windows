@@ -85,8 +85,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         Evaluate();
         // Registering at every start moves the logon entry to this copy after an update to another folder.
-        // A settings problem says nothing about what the user wants, so the entry stays as it is.
-        if (!_settingsProblem) SyncStartupAtLaunch();
+        // Missing or unreadable settings say nothing about what the user wants, so the entry stays as it is.
+        if (!showAtStart) SyncStartupAtLaunch();
         if (showAtStart || _controller.State is EffectState.Conflict or EffectState.Fault) ShowSettings();
     }
 

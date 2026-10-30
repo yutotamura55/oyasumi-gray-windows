@@ -32,11 +32,11 @@ static void Check(bool condition, string message)
 
 static DateTimeOffset Utc(int day, int hour, int minute = 0) => new(2026, 9, day, hour, minute, 0, TimeSpan.Zero);
 
-static AppSettings Defaults() => new(true, new TimeOnly(22, 0), 60, new TimeOnly(7, 0));
+static AppSettings CustomSchedule() => new(true, new TimeOnly(22, 0), 60, new TimeOnly(7, 0));
 
 static void SettingsValidation()
 {
-    Check(Defaults().Validate() is null, "default should be valid");
+    Check(CustomSchedule().Validate() is null, "default should be valid");
     Check(new AppSettings(true, new TimeOnly(22, 0), 0, new TimeOnly(7, 0)).Validate() is not null, "zero fade");
     Check(new AppSettings(true, new TimeOnly(22, 0), 60, new TimeOnly(22, 0)).Validate() is not null, "same endpoints");
     Check(new AppSettings(true, new TimeOnly(22, 0), 90, new TimeOnly(23, 0)).Validate() is not null, "fade longer than interval");
@@ -45,23 +45,23 @@ static void SettingsValidation()
 static void NightSchedule()
 {
     var zone = TimeZoneInfo.Utc;
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 21), zone, null).Ratio == 0, "before start");
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 22, 30), zone, null).Ratio == .5, "mid fade");
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 23), zone, null).Ratio == 1, "fade end");
-    Check(Schedule.Evaluate(Defaults(), Utc(27, 7), zone, null).Ratio == 0, "restore");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 21), zone, null).Ratio == 0, "before start");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 22, 30), zone, null).Ratio == .5, "mid fade");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 23), zone, null).Ratio == 1, "fade end");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(27, 7), zone, null).Ratio == 0, "restore");
 }
 
 static void CatchUp()
 {
-    var snapshot = Schedule.Evaluate(Defaults(), Utc(27, 1), TimeZoneInfo.Utc, null);
+    var snapshot = Schedule.Evaluate(CustomSchedule(), Utc(27, 1), TimeZoneInfo.Utc, null);
     Check(snapshot.Ratio == 1 && snapshot.NextBoundary == Utc(27, 7), "cross midnight");
 }
 
 static void PauseExpiry()
 {
     var until = Utc(26, 22, 45);
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 22, 30), TimeZoneInfo.Utc, until).Ratio == 0, "pause active");
-    Check(Schedule.Evaluate(Defaults(), until, TimeZoneInfo.Utc, until).Ratio == .75, "pause expired");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 22, 30), TimeZoneInfo.Utc, until).Ratio == 0, "pause active");
+    Check(Schedule.Evaluate(CustomSchedule(), until, TimeZoneInfo.Utc, until).Ratio == .75, "pause expired");
 }
 
 static void DaylightSaving()
@@ -154,6 +154,10 @@ static void FixedSchedule()
     foreach (var start in new[] { new TimeOnly(3, 0), new TimeOnly(3, 30), new TimeOnly(4, 0) })
         Check(AppSettings.ForStart(true, start).Validate() == "開始時刻は 03:00 より前か、04:00 より後にしてください。", $"start {start}");
     Check(AppSettings.ForStart(true, new TimeOnly(4, 1)).Validate() is null, "start just after restore");
+    var night = AppSettings.ForStart(true, new TimeOnly(22, 0));
+    Check(Schedule.Evaluate(night, new DateTimeOffset(2026, 1, 2, 3, 59, 59, TimeSpan.Zero), TimeZoneInfo.Utc, null).Phase == SchedulePhase.Gray, "gray until restore");
+    var restored = Schedule.Evaluate(night, new DateTimeOffset(2026, 1, 2, 4, 0, 0, TimeSpan.Zero), TimeZoneInfo.Utc, null);
+    Check(restored.Phase == SchedulePhase.Waiting && restored.NextBoundary == new DateTimeOffset(2026, 1, 2, 22, 0, 0, TimeSpan.Zero), "color at 04:00, next start tonight");
 }
 
 static void TinyFadeSteps()
