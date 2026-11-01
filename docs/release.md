@@ -54,7 +54,7 @@ ZIP の名前は版によらず `OyasumiGray.Windows-win-x64.zip` とする。
 
       ```bash
       git ls-remote --tags origin
-      gh api repos/yutotamura55/oyasumi-gray-windows/releases/latest --jq .id
+      gh api repos/yutotamura55/oyasumi-gray-windows/releases/tags/untagged-xxxx --jq .id
       ```
 
    2. Release のタグを直す。`<RELEASE_ID>` は 1 で読んだ値に置き換える。
