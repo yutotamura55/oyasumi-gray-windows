@@ -51,7 +51,7 @@ ZIP には含まれていないので、最初に一度、PowerShell から次�
 winget install Microsoft.DotNet.DesktopRuntime.10
 ```
 
-ランタイムがないと、アプリは起動しません。
+ランタイムがないと、アプリは起動せず、インストールを求めるダイアログが表示されます。ボタンを押すとダウンロードのページが開きます。
 新しい修正版に更新するときは `winget upgrade Microsoft.DotNet.DesktopRuntime.10` を実行します。
 
 Release から入手した ZIP、またはソースから作った ZIP を任意のフォルダーに展開し、
