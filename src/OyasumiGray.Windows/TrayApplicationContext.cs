@@ -6,6 +6,7 @@ namespace OyasumiGray.Windows;
 internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly SettingsStore _store = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OyasumiGray.Windows"));
+    private readonly StartupRegistration _startup = StartupRegistration.ForThisApp();
     private readonly MagnificationEffect _effect;
     private readonly EffectController _controller;
     private readonly SettingsForm _form;
@@ -48,8 +49,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
         _controller.CheckInitial();
         _form = new SettingsForm(_settings);
         _ = _form.Handle; // Create the handle so OS event callbacks can marshal to the UI thread.
-        try { _form.LaunchAtLogin.Checked = StartupRegistration.IsRegistered(); }
-        catch (Exception ex) { Log("startup-read", ex); }
         _form.SaveButton.Click += async (_, _) => await SaveSettingsAsync();
         _form.PauseButton.Click += async (_, _) => await PauseAsync();
         _form.ResumeButton.Click += async (_, _) => await ResumeAsync();
@@ -85,7 +84,21 @@ internal sealed class TrayApplicationContext : ApplicationContext
         SystemEvents.SessionSwitch += OnSessionSwitch;
 
         Evaluate();
+        // Registering at every start moves the logon entry to this copy after an update to another folder.
+        // Missing or unreadable settings say nothing about what the user wants, so the entry stays as it is.
+        if (!showAtStart) SyncStartupAtLaunch();
         if (showAtStart || _controller.State is EffectState.Conflict or EffectState.Fault) ShowSettings();
+    }
+
+    private void SyncStartupAtLaunch()
+    {
+        try { _startup.Set(_settings.Enabled); }
+        catch (Exception ex)
+        {
+            Log("startup", ex);
+            MessageBox.Show($"Windows へのログオン時に自動で起動する設定を更新できませんでした。\n{ex.Message}",
+                "おやすみグレー for Windows", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void Evaluate()
@@ -156,7 +169,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
                 _settingsProblem = false;
             }
             Evaluate();
-            StartupRegistration.Set(_form.LaunchAtLogin.Checked);
+            _startup.Set(requested.Enabled);
         }
         catch (Exception ex)
         {
@@ -207,6 +220,8 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             await _store.SaveSettingsAsync(_settings);
             await _store.SavePauseAsync(null);
+            // Read after the awaits: a save that finished meanwhile may have turned switching back on.
+            _startup.Set(_settings.Enabled);
             _settingsProblem = false;
             Evaluate();
         }
@@ -225,8 +240,6 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     private void ShowSettings()
     {
-        try { _form.LaunchAtLogin.Checked = StartupRegistration.IsRegistered(); }
-        catch (Exception ex) { Log("startup-read", ex); }
         _form.Show();
         _form.WindowState = FormWindowState.Normal;
         _form.Activate();

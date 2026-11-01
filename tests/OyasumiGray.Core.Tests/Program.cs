@@ -12,6 +12,8 @@ var cases = new (string Name, Action Run)[]
     ("停止時に自分の効果だけ解除", OwnedRelease),
     ("設定を保存し壊れた入力を拒否", SettingsStorage),
     ("微小な変化で誤って競合にしない", TinyFadeSteps),
+    ("移行時間と復帰時刻を固定する", FixedSchedule),
+    ("読み込んだ設定に固定値を使う", LoadedSettingsUseFixedSchedule),
     ("競合を検出したら終了時に他者の値を消さない", ConflictRelease),
 };
 
@@ -30,11 +32,11 @@ static void Check(bool condition, string message)
 
 static DateTimeOffset Utc(int day, int hour, int minute = 0) => new(2026, 9, day, hour, minute, 0, TimeSpan.Zero);
 
-static AppSettings Defaults() => new(true, new TimeOnly(22, 0), 60, new TimeOnly(7, 0));
+static AppSettings CustomSchedule() => new(true, new TimeOnly(22, 0), 60, new TimeOnly(7, 0));
 
 static void SettingsValidation()
 {
-    Check(Defaults().Validate() is null, "default should be valid");
+    Check(CustomSchedule().Validate() is null, "default should be valid");
     Check(new AppSettings(true, new TimeOnly(22, 0), 0, new TimeOnly(7, 0)).Validate() is not null, "zero fade");
     Check(new AppSettings(true, new TimeOnly(22, 0), 60, new TimeOnly(22, 0)).Validate() is not null, "same endpoints");
     Check(new AppSettings(true, new TimeOnly(22, 0), 90, new TimeOnly(23, 0)).Validate() is not null, "fade longer than interval");
@@ -43,23 +45,23 @@ static void SettingsValidation()
 static void NightSchedule()
 {
     var zone = TimeZoneInfo.Utc;
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 21), zone, null).Ratio == 0, "before start");
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 22, 30), zone, null).Ratio == .5, "mid fade");
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 23), zone, null).Ratio == 1, "fade end");
-    Check(Schedule.Evaluate(Defaults(), Utc(27, 7), zone, null).Ratio == 0, "restore");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 21), zone, null).Ratio == 0, "before start");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 22, 30), zone, null).Ratio == .5, "mid fade");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 23), zone, null).Ratio == 1, "fade end");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(27, 7), zone, null).Ratio == 0, "restore");
 }
 
 static void CatchUp()
 {
-    var snapshot = Schedule.Evaluate(Defaults(), Utc(27, 1), TimeZoneInfo.Utc, null);
+    var snapshot = Schedule.Evaluate(CustomSchedule(), Utc(27, 1), TimeZoneInfo.Utc, null);
     Check(snapshot.Ratio == 1 && snapshot.NextBoundary == Utc(27, 7), "cross midnight");
 }
 
 static void PauseExpiry()
 {
     var until = Utc(26, 22, 45);
-    Check(Schedule.Evaluate(Defaults(), Utc(26, 22, 30), TimeZoneInfo.Utc, until).Ratio == 0, "pause active");
-    Check(Schedule.Evaluate(Defaults(), until, TimeZoneInfo.Utc, until).Ratio == .75, "pause expired");
+    Check(Schedule.Evaluate(CustomSchedule(), Utc(26, 22, 30), TimeZoneInfo.Utc, until).Ratio == 0, "pause active");
+    Check(Schedule.Evaluate(CustomSchedule(), until, TimeZoneInfo.Utc, until).Ratio == .75, "pause expired");
 }
 
 static void DaylightSaving()
@@ -111,8 +113,9 @@ static void SettingsStorage()
     {
         var store = new SettingsStore(path);
         Check(store.LoadSettings() == AppSettings.Default, "initial defaults");
-        store.SaveSettingsAsync(Defaults()).GetAwaiter().GetResult();
-        Check(store.LoadSettings() == Defaults(), "round trip");
+        var saved = AppSettings.ForStart(true, new TimeOnly(22, 0));
+        store.SaveSettingsAsync(saved).GetAwaiter().GetResult();
+        Check(store.LoadSettings() == saved, "round trip");
         File.WriteAllText(Path.Combine(path, "settings.json"), "{\"schemaVersion\":2}");
         try { store.LoadSettings(); throw new Exception("unsupported schema accepted"); }
         catch (InvalidDataException) { }
@@ -121,6 +124,40 @@ static void SettingsStorage()
         catch (InvalidDataException) { }
     }
     finally { if (Directory.Exists(path)) Directory.Delete(path, true); }
+}
+
+static void LoadedSettingsUseFixedSchedule()
+{
+    var directory = Path.Combine(Path.GetTempPath(), "oyasumi-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var store = new SettingsStore(directory);
+        var path = Path.Combine(directory, "settings.json");
+        File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"21:30","fadeDurationMinutes":30,"restoreTime":"07:00"}""");
+        Check(store.LoadSettings() == AppSettings.ForStart(true, new TimeOnly(21, 30)), "old fade and restore are replaced");
+        File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"03:30","fadeDurationMinutes":60,"restoreTime":"07:00"}""");
+        var rejected = false;
+        try { store.LoadSettings(); }
+        catch (InvalidDataException) { rejected = true; }
+        Check(rejected, "a start that is invalid with the fixed schedule is rejected");
+    }
+    finally { Directory.Delete(directory, true); }
+}
+
+static void FixedSchedule()
+{
+    var settings = AppSettings.ForStart(true, new TimeOnly(21, 30));
+    Check(settings == new AppSettings(true, new TimeOnly(21, 30), 60, new TimeOnly(4, 0)), "fixed fade and restore");
+    Check(AppSettings.Default == AppSettings.ForStart(false, new TimeOnly(22, 0)), "default start");
+    Check(AppSettings.ForStart(true, new TimeOnly(2, 59)).Validate() is null, "start before the last valid minute");
+    foreach (var start in new[] { new TimeOnly(3, 0), new TimeOnly(3, 30), new TimeOnly(4, 0) })
+        Check(AppSettings.ForStart(true, start).Validate() == "開始時刻は 03:00 より前か、04:00 より後にしてください。", $"start {start}");
+    Check(AppSettings.ForStart(true, new TimeOnly(4, 1)).Validate() is null, "start just after restore");
+    var night = AppSettings.ForStart(true, new TimeOnly(22, 0));
+    Check(Schedule.Evaluate(night, new DateTimeOffset(2026, 1, 2, 3, 59, 59, TimeSpan.Zero), TimeZoneInfo.Utc, null).Phase == SchedulePhase.Gray, "gray until restore");
+    var restored = Schedule.Evaluate(night, new DateTimeOffset(2026, 1, 2, 4, 0, 0, TimeSpan.Zero), TimeZoneInfo.Utc, null);
+    Check(restored.Phase == SchedulePhase.Waiting && restored.NextBoundary == new DateTimeOffset(2026, 1, 2, 22, 0, 0, TimeSpan.Zero), "color at 04:00, next start tonight");
 }
 
 static void TinyFadeSteps()
