@@ -47,6 +47,12 @@ ZIP の名前は版によらず `OyasumiGray.Windows-win-x64.zip` とする。
    「Draft」と表示された Release から ZIP をダウンロードし、Windows で展開して起動できることを確かめる。
 5. 下書きの右上の鉛筆アイコンから編集画面を開く。Release ノートに、.NET 10 デスクトップランタイムが必要なことと、確認済みの範囲と未確認の範囲（[検証状況](verification.md) の要約）を書き足す。
 6. 編集画面の下の「Publish release」を押して公開する。
+7. 公開された Release の URL が `releases/tag/<タグ名>` になっていることを確かめる。
+   `untagged-` で始まる名前になっていたら、次の形式でタグを直し、できてしまった `untagged-…` のタグを削除する。`<RELEASE_ID>` と `<タグ名>` は実際の値に置き換える。
+
+   ```bash
+   gh api --method PATCH repos/yutotamura55/oyasumi-gray-windows/releases/<RELEASE_ID> -f tag_name=<タグ名>
+   ```
 
 ## 失敗したとき
 
