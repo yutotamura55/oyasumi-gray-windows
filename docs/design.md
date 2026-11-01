@@ -95,7 +95,7 @@ UIにはWindowsの標準コントロールを使い、時刻は24時間表記と
 
 Aを採用する。性能欄は構成からの評価であり、実測結果ではない。
 
-技術構成は C#、.NET 10 LTS、WinForms、Windows標準のMagnification APIとする。.NET 10は2028-11-14までのLTS対象であることを確認した。具体的なパッチ版は実装開始時にサポート中のものへ固定する。[.NETのサポート方針](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
+技術構成は C#、.NET 10 LTS、WinForms、Windows標準のMagnification APIとする。.NET 10は2028-11-14までのLTS対象であることを確認した。ランタイムは同梱しないので、実行時のパッチ版は利用者のPCに入っている10.0.xで決まる。[.NETのサポート方針](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
 
 WinFormsは通知領域用の `NotifyIcon` を備えている。初版の小さな設定画面と常駐メニューに適している。[NotifyIcon](https://learn.microsoft.com/en-us/dotnet/desktop/winforms/controls/notifyicon-component-windows-forms)
 
