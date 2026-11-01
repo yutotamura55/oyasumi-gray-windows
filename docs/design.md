@@ -95,7 +95,7 @@ UIにはWindowsの標準コントロールを使い、時刻は24時間表記と
 
 Aを採用する。性能欄は構成からの評価であり、実測結果ではない。
 
-技術構成は C#、.NET 10 LTS、WinForms、Windows標準のMagnification APIとする。.NET 10は2028-11-14までのLTS対象であることを確認した。具体的なパッチ版は実装開始時にサポート中のものへ固定する。[.NETのサポート方針](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
+技術構成は C#、.NET 10 LTS、WinForms、Windows標準のMagnification APIとする。.NET 10は2028-11-14までのLTS対象であることを確認した。ランタイムは同梱しないので、実行時のパッチ版は利用者のPCに入っている10.0.xで決まる。[.NETのサポート方針](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core)
 
 WinFormsは通知領域用の `NotifyIcon` を備えている。初版の小さな設定画面と常駐メニューに適している。[NotifyIcon](https://learn.microsoft.com/en-us/dotnet/desktop/winforms/controls/notifyicon-component-windows-forms)
 
@@ -251,7 +251,7 @@ APIの戻り値が失敗の場合は、解除できたと表示しない。失�
 
 ## 9. 起動と配布
 
-- `win-x64` のWindows用実行ファイルとして配布する。.NETランタイムを同梱する自己完結型の配布を採用する。
+- `win-x64` のWindows用実行ファイルとして配布する。.NETランタイムは同梱せず、利用者が .NET 10 デスクトップランタイムをインストールする。作者が自分で使うアプリであり、配布物を約46MBから約0.1MBにできるため、初回のインストールの手間を受け入れる。トリミングはWinFormsで使えない。
 - アプリはWindows側のローカルフォルダーに配置して実行する。WSLはソース管理に利用できるが、色制御はWindows上のプロセスから呼ぶ。
 - 実行権限は通常ユーザーを前提とする。`uiAccess` を必要とする入力座標変換は使用しない。色変換が通常権限で使えることは実機の受け入れ条件とする。
 - 64ビットWindows上の32ビット実行は対応しない。Magnification APIはWOW64をサポートしない。[APIの対応条件](https://learn.microsoft.com/en-us/windows/win32/winauto/magapi/magapi-intro)
