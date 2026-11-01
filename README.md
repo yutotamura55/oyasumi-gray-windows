@@ -19,7 +19,12 @@ Windows 11 x64 の通常の SDR デスクトップを対象に設計していま
 現在は Release がまだありません。
 Release のページの「Assets」から `OyasumiGray.Windows-win-x64.zip` をダウンロードしてください。
 同じ欄の「Source code」はソースコードの圧縮ファイルで、そのままでは起動できません。
-Release の ZIP は .NET ランタイムを含むため、.NET を別にインストールする必要はありません。
+実行には [.NET 10 デスクトップランタイム][dotnet-sdk]（x64）が必要です。
+ZIP には含まれていないので、最初に一度だけ、PowerShell から次のコマンドでインストールしてください。
+
+```powershell
+winget install Microsoft.DotNet.DesktopRuntime.10
+```
 
 このアプリには電子署名がありません。
 ダウンロードした ZIP から展開した `OyasumiGray.Windows.exe` を開くと、

@@ -21,7 +21,7 @@ $publishDirectory = Join-Path ([System.IO.Path]::GetTempPath()) ("oyasumi-gray-"
 
 try {
     New-Item -ItemType Directory -Path $artifacts -Force | Out-Null
-    $publishArguments = @($project, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-o', $publishDirectory)
+    $publishArguments = @($project, '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishSingleFile=true', '-o', $publishDirectory)
     if ($Version) { $publishArguments += "-p:Version=$Version" }
     dotnet publish @publishArguments
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
