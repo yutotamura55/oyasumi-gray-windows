@@ -47,7 +47,29 @@ ZIP の名前は版によらず `OyasumiGray.Windows-win-x64.zip` とする。
    「Draft」と表示された Release から ZIP をダウンロードし、Windows で展開して起動できることを確かめる。
 5. 下書きの右上の鉛筆アイコンから編集画面を開く。Release ノートに、.NET 10 デスクトップランタイムが必要なことと、確認済みの範囲と未確認の範囲（[検証状況](verification.md) の要約）を書き足す。
 6. 編集画面の下の「Publish release」を押して公開する。
-7. 最初の Release を公開したときは、README の「入手と起動」から「現在は Release がまだありません。」の文を削除する PR を作る。
+7. 公開された Release のページの URL が `releases/tag/<タグ名>` になっていることを確かめる。
+   `untagged-` で始まる名前になっていたら、次の手順で直す。`v0.1.0` と `untagged-xxxx` は例なので、実際の名前に置き換える。
+
+   1. 両方のタグが同じ commit を指すことを確かめ、Release の ID を読む。
+
+      ```bash
+      git ls-remote --tags origin
+      gh api repos/yutotamura55/oyasumi-gray-windows/releases/tags/untagged-xxxx --jq .id
+      ```
+
+   2. Release のタグを直す。`<RELEASE_ID>` は 1 で読んだ値に置き換える。
+
+      ```bash
+      gh api --method PATCH repos/yutotamura55/oyasumi-gray-windows/releases/<RELEASE_ID> -f tag_name=v0.1.0
+      ```
+
+   3. できてしまったタグを削除する。
+
+      ```bash
+      git push origin --delete untagged-xxxx
+      ```
+
+   Release のページの URL が `releases/tag/v0.1.0` になり、`git ls-remote --tags origin` に `untagged-` のタグがなければ完了である。
 
 ## 失敗したとき
 
@@ -63,6 +85,6 @@ Release workflow が失敗した場合は、run のログで失敗した段階�
   git tag -d v0.1.0
   ```
 
-公開した Release のタグは削除・付け替えをしない。
+公開した Release のタグは削除・付け替えをしない（上の手順 7 のように、同じ commit を指す本来のタグへ直す場合を除く）。
 ダウンロードした人が持つ ZIP と、タグが指す版が食い違うため。
 公開後に問題が見つかった場合は、修正して次の版番号で公開する。

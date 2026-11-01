@@ -16,7 +16,6 @@ Windows 11 x64 の通常の SDR デスクトップを対象に設計していま
 ### Release から入手する
 
 ビルド済みの ZIP は [GitHub Releases][releases] の添付ファイルとして配布します。
-現在は Release がまだありません。
 Release のページの「Assets」から `OyasumiGray.Windows-win-x64.zip` をダウンロードしてください。
 同じ欄の「Source code」はソースコードの圧縮ファイルで、そのままでは起動できません。
 
