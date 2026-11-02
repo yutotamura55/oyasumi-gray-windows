@@ -4,6 +4,49 @@
 以下の節の SHA は書き換え後のものに直してある。
 PR の本文などにある書き換え前の SHA との対応は [Issue #13 の記録](https://github.com/yutotamura55/oyasumi-gray-windows/issues/13#issuecomment-6398961320) にある。
 
+## 2026-11-03 のテストカバレッジ（Issue #26）
+
+テストがソースのどの行を実行したかを、coverlet.console 10.1.0 で測った。
+テストを足す前（`a78ae64`）と、足した後（`68aab80`）の行の割合は次のとおり。
+
+| ファイル | 足す前 | 足した後 | 足したテストが確かめること |
+| --- | --- | --- | --- |
+| `Core/EffectController.cs` | 34/70 | 70/70 | 起動時の他者の色変更、再開、画面構成の変更後の照合、強制解除、読み書きの失敗 |
+| `Core/SettingsStore.cs` | 44/66 | 66/66 | 一時解除の保存と読み込み、壊れた一時解除・設定ファイル、16 KiB を超えるファイル |
+| `Core/ColorMatrix.cs` | 22/26 | 26/26 | OS から読んだ行列の値の検証 |
+| `Core/Schedule.cs` | 33/34 | 33/34 | — |
+| `Core/AppSettings.cs` | 10/10 | 10/10 | — |
+| `Windows/SettingsForm.cs` | 64/70 | 70/70 | 閉じるボタンでは隠すだけで、終了時だけ閉じる |
+| `Windows/TrayStatusPresentation.cs` | 37/39 | 39/39 | 白黒表示中と、時刻を計算する前の表示 |
+| `Windows/StartupRegistration.cs` | 10/11 | 10/11 | — |
+| `Windows/TrayApplicationContext.cs` | 0/242 | 0/242 | — |
+| `Windows/MagnificationEffect.cs` | 0/19 | 0/19 | — |
+| `Windows/Program.cs` | 0/12 | 0/12 | — |
+
+プロジェクト全体では、Core が 69.4% から 99.5%、Windows が 28.2% から 30.3% になった。
+Windows の値は、WinForms のソース生成器が作るファイル（`obj/` の下、4 行）を除いて数えた。
+
+### テストしていない処理
+
+- `Schedule.cs` の 1 行は、次の開始時刻が見つからないときの例外で、通常は到達しない。
+- `StartupRegistration.cs` の 1 行は、本物のログオン起動の登録先（Run キー）を指定する `ForThisApp()` である。テストは本物の登録に触れないよう、一時的なキーを使う。
+- `TrayApplicationContext.cs` は、時刻の再計算、設定の保存、15 分の一時解除、停止、ロック・スリープ・画面構成の変更への対応、起動時のログオン起動の登録を受け持つ。
+  通知領域のアイコン、レジストリ、OS のイベント、メッセージボックスを直接使っているため、今の構成ではテストから呼べない。
+  これらの動作は、実機での確認（この文書の Issue #8・#19・#21 の節）だけで確かめている。
+- `MagnificationEffect.cs` は Windows の色変換の API を呼ぶ部分で、実機での確認だけで確かめている。
+- `Program.cs` は二重起動の防止と起動時の例外の表示で、テストしていない。
+
+### 計測の方法
+
+- Core のテストは、Docker の `mcr.microsoft.com/dotnet/sdk:10.0`（Linux）で `scripts/coverage.ps1` を実行して測った。
+- 設定画面のテストは Windows でしか動かない。このときの Windows の PC には .NET SDK がなく、`scripts/coverage.ps1` は実行できなかった。
+  そこで、Docker でビルドしたテストを Windows の PC にコピーし、スクリプトと同じ順序（Core を測ってから設定画面のテストを合算）で coverlet.console を直接実行した。
+  ソースが Docker の中のパスでビルドされているため、`--exclude-assemblies-without-sources None` を加えた（加えないと計測対象が 0 件になった）。
+  スクリプトの Windows での経路そのものは実行していない。
+- 実行の前後で、ログオン起動の登録が普段のフォルダーの実行ファイルを指したままであること、テスト用のキー（`HKCU\Software\OyasumiGray.Tests`）が残っていないことを確かめた。
+- 足したテストが誤りを見つけられるかを、コンテナ内の複製でコードを 1 か所ずつ壊して確かめた。
+  画面構成の変更後に自分の効果の記録を消さない、残っている他者の色変更を再開時に無視する、起動時の他者の色変更を無視する、強制解除で書き込まない、UTC 以外の一時解除の時刻を受け入れる、ファイルの上限を 64 KiB に上げる、NaN を含む行列を受け入れる、の 7 通りすべてで、対応するテストが失敗した。
+
 ## 2026-11-01 の確認（Issue #16、v0.1.0 の Release）
 
 タグ `v0.1.0`（`a2db053`）の Release workflow が作った下書きの ZIP を、利用者がダウンロードして展開し、起動した。
