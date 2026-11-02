@@ -38,6 +38,13 @@ static void Check(bool condition, string message)
     if (!condition) throw new Exception(message);
 }
 
+static bool Throws<T>(Action action) where T : Exception
+{
+    try { action(); }
+    catch (T) { return true; }
+    return false;
+}
+
 static DateTimeOffset Utc(int day, int hour, int minute = 0) => new(2026, 9, day, hour, minute, 0, TimeSpan.Zero);
 
 static AppSettings CustomSchedule() => new(true, new TimeOnly(22, 0), 60, new TimeOnly(7, 0));
@@ -125,11 +132,9 @@ static void SettingsStorage()
         store.SaveSettingsAsync(saved).GetAwaiter().GetResult();
         Check(store.HasSettings && store.LoadSettings() == saved, "round trip");
         File.WriteAllText(Path.Combine(path, "settings.json"), "{\"schemaVersion\":2}");
-        try { store.LoadSettings(); throw new Exception("unsupported schema accepted"); }
-        catch (InvalidDataException) { }
+        Check(Throws<InvalidDataException>(() => store.LoadSettings()), "unsupported schema accepted");
         File.WriteAllText(Path.Combine(path, "settings.json"), "{\"schemaVersion\":1,\"startTime\":\"22:00\",\"fadeDurationMinutes\":60,\"restoreTime\":\"07:00\"}");
-        try { store.LoadSettings(); throw new Exception("missing enabled accepted"); }
-        catch (InvalidDataException) { }
+        Check(Throws<InvalidDataException>(() => store.LoadSettings()), "missing enabled accepted");
     }
     finally { if (Directory.Exists(path)) Directory.Delete(path, true); }
 }
@@ -145,10 +150,7 @@ static void LoadedSettingsUseFixedSchedule()
         File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"21:30","fadeDurationMinutes":30,"restoreTime":"07:00"}""");
         Check(store.LoadSettings() == AppSettings.ForStart(true, new TimeOnly(21, 30)), "old fade and restore are replaced");
         File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"03:30","fadeDurationMinutes":60,"restoreTime":"07:00"}""");
-        var rejected = false;
-        try { store.LoadSettings(); }
-        catch (InvalidDataException) { rejected = true; }
-        Check(rejected, "a start that is invalid with the fixed schedule is rejected");
+        Check(Throws<InvalidDataException>(() => store.LoadSettings()), "a start that is invalid with the fixed schedule is rejected");
     }
     finally { Directory.Delete(directory, true); }
 }
@@ -312,10 +314,8 @@ static void PauseStorage()
         store.SavePauseAsync(null).GetAwaiter().GetResult();
         Check(store.LoadPause() is null, "pause cleared");
 
-        var rejected = false;
-        try { store.SavePauseAsync(new DateTimeOffset(2026, 9, 26, 22, 45, 0, TimeSpan.FromHours(9))).GetAwaiter().GetResult(); }
-        catch (ArgumentException) { rejected = true; }
-        Check(rejected, "a time that is not UTC is not saved");
+        Check(Throws<ArgumentException>(() => store.SavePauseAsync(new DateTimeOffset(2026, 9, 26, 22, 45, 0, TimeSpan.FromHours(9)))),
+            "a time that is not UTC is not saved");
 
         foreach (var json in new[]
         {
@@ -326,10 +326,7 @@ static void PauseStorage()
         })
         {
             File.WriteAllText(store.PausePath, json);
-            var broken = false;
-            try { store.LoadPause(); }
-            catch (InvalidDataException) { broken = true; }
-            Check(broken, $"broken pause file accepted: {json}");
+            Check(Throws<InvalidDataException>(() => store.LoadPause()), $"broken pause file accepted: {json}");
         }
     }
     finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
@@ -351,10 +348,7 @@ static void BrokenSettingsFiles()
         })
         {
             File.WriteAllText(store.SettingsPath, json);
-            var broken = false;
-            try { store.LoadSettings(); }
-            catch (InvalidDataException) { broken = true; }
-            Check(broken, $"broken settings file accepted: {json[..Math.Min(json.Length, 60)]}");
+            Check(Throws<InvalidDataException>(() => store.LoadSettings()), $"broken settings file accepted: {json[..Math.Min(json.Length, 60)]}");
         }
     }
     finally { Directory.Delete(directory, true); }
@@ -362,20 +356,20 @@ static void BrokenSettingsFiles()
 
 static void MatrixFromArray()
 {
-    var values = ColorMatrix.Identity.ToArray();
+    var values = ColorMatrix.ForRatio(.5).ToArray();
     var matrix = ColorMatrix.FromArray(values);
-    Check(matrix.IsIdentity, "identity from the OS");
+    Check(matrix.ToArray().SequenceEqual(values), "all values read from the OS are kept");
     values[0] = 0;
-    Check(matrix.IsIdentity, "the matrix keeps its own copy");
+    Check(matrix.NearlyEquals(ColorMatrix.ForRatio(.5)), "the matrix keeps its own copy");
     matrix.ToArray()[0] = 0;
-    Check(matrix.IsIdentity, "the returned array is a copy");
-    foreach (var bad in new[] { new float[24], Enumerable.Repeat(float.NaN, 25).ToArray(), Enumerable.Repeat(float.PositiveInfinity, 25).ToArray() })
-    {
-        var rejected = false;
-        try { ColorMatrix.FromArray(bad); }
-        catch (ArgumentException) { rejected = true; }
-        Check(rejected, $"invalid matrix accepted: length {bad.Length}, first {bad.FirstOrDefault()}");
-    }
+    Check(matrix.NearlyEquals(ColorMatrix.ForRatio(.5)), "the returned array is a copy");
+
+    var oneNaN = ColorMatrix.Identity.ToArray();
+    oneNaN[3] = float.NaN;
+    var oneInfinity = ColorMatrix.Identity.ToArray();
+    oneInfinity[24] = float.PositiveInfinity;
+    foreach (var (bad, name) in new[] { (new float[24], "24 values"), (new float[26], "26 values"), (oneNaN, "one NaN"), (oneInfinity, "one infinity") })
+        Check(Throws<ArgumentException>(() => ColorMatrix.FromArray(bad)), $"invalid matrix accepted: {name}");
 }
 
 sealed class FakeEffect : IDisplayEffect

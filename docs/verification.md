@@ -16,7 +16,7 @@ PR の本文などにある書き換え前の SHA との対応は [Issue #13 の
 | `Core/ColorMatrix.cs` | 22/26 | 26/26 | OS から読んだ行列の値の検証 |
 | `Core/Schedule.cs` | 33/34 | 33/34 | — |
 | `Core/AppSettings.cs` | 10/10 | 10/10 | — |
-| `Windows/SettingsForm.cs` | 64/70 | 70/70 | 閉じるボタンでは隠すだけで、終了時だけ閉じる |
+| `Windows/SettingsForm.cs` | 64/70 | 70/70 | 利用者が閉じる操作（`CloseReason.UserClosing`）では隠すだけで、終了時だけ閉じる |
 | `Windows/TrayStatusPresentation.cs` | 37/39 | 39/39 | 白黒表示中と、時刻を計算する前の表示 |
 | `Windows/StartupRegistration.cs` | 10/11 | 10/11 | — |
 | `Windows/TrayApplicationContext.cs` | 0/242 | 0/242 | — |
@@ -38,14 +38,18 @@ Windows の値は、WinForms のソース生成器が作るファイル（`obj/`
 
 ### 計測の方法
 
-- Core のテストは、Docker の `mcr.microsoft.com/dotnet/sdk:10.0`（Linux）で `scripts/coverage.ps1` を実行して測った。
-- 設定画面のテストは Windows でしか動かない。このときの Windows の PC には .NET SDK がなく、`scripts/coverage.ps1` は実行できなかった。
-  そこで、Docker でビルドしたテストを Windows の PC にコピーし、スクリプトと同じ順序（Core を測ってから設定画面のテストを合算）で coverlet.console を直接実行した。
-  ソースが Docker の中のパスでビルドされているため、`--exclude-assemblies-without-sources None` を加えた（加えないと計測対象が 0 件になった）。
-  スクリプトの Windows での経路そのものは実行していない。
-- 実行の前後で、ログオン起動の登録が普段のフォルダーの実行ファイルを指したままであること、テスト用のキー（`HKCU\Software\OyasumiGray.Tests`）が残っていないことを確かめた。
+- 「足す前」の値は、Docker の `mcr.microsoft.com/dotnet/sdk:10.0`（Linux）でビルドしたテストに coverlet.console を直接使って測った。設定画面のテストは、ビルドしたものを Windows の PC にコピーして実行した。
+  このとき、ソースが Docker の中のパスでビルドされているため、`--exclude-assemblies-without-sources None` を加えた（加えないと計測対象が 0 件になった）。
+- 「足した後」の値は、`scripts/coverage.ps1` を次の 3 通りで実行して得た。どれも全テストが通り、同じ値になった。
+  - Docker の Linux（Core だけ）。リポジトリを空白を含むフォルダーにコピーし、リポジトリの外から実行した。
+  - Windows の PC の Windows PowerShell 5.1 と PowerShell 7.6.9。この PC には .NET SDK がないため、公式の ZIP（SDK 10.0.403、SHA-512 を公開値と照合）を一時フォルダーに展開し、そのプロセスの PATH だけに加えた。
+    リポジトリは空白を含むフォルダーにコピーし、リポジトリの外から実行した。
+- Windows で実行する前後で、ログオン起動の登録が普段のフォルダーの実行ファイルを指したままであること、テスト用のキー（`HKCU\Software\OyasumiGray.Tests`）が残っていないことを確かめた。
 - 足したテストが誤りを見つけられるかを、コンテナ内の複製でコードを 1 か所ずつ壊して確かめた。
-  画面構成の変更後に自分の効果の記録を消さない、残っている他者の色変更を再開時に無視する、起動時の他者の色変更を無視する、強制解除で書き込まない、UTC 以外の一時解除の時刻を受け入れる、ファイルの上限を 64 KiB に上げる、NaN を含む行列を受け入れる、の 7 通りすべてで、対応するテストが失敗した。
+  次の 10 通りすべてで、対応するテストが失敗した。
+  - 色変更の制御：画面構成の変更後に自分の効果の記録を消さない、残っている他者の色変更を再開時に無視する、起動時の他者の色変更を無視する、強制解除で書き込まない。
+  - 保存ファイル：UTC 以外の一時解除の時刻を受け入れる、ファイルの上限を 64 KiB に上げる。
+  - 行列：値がすべて NaN のときだけ拒否する、26 要素を受け入れる、NaN を 1 つでも含めば拒否する検査を外す、読んだ値を捨てて無変換の行列を返す。
 
 ## 2026-11-01 の確認（Issue #16、v0.1.0 の Release）
 

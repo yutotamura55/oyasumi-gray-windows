@@ -129,6 +129,9 @@ PowerShell 7 がある場合は `pwsh -NoProfile -File .\scripts\check.ps1` で�
 その場合は `dotnet format OyasumiGray.sln` を一度実行すると、改行コードが LF に変わります。
 Git 上の内容は変わらないため、この操作でコミットすべき差分は出ません。
 
+GitHub Actions は PR と `main` への push のたびに、Windows の runner で同じスクリプトを実行します。
+`v` で始まるタグを push したときも同じスクリプトを実行し、ZIP を添付した Release の下書きを作ります（[Release の作り方](docs/release.md)）。
+
 ## テストのカバレッジを測る
 
 テストがソースのどの行を実行したか（テストカバレッジ、test coverage）は、リポジトリのルートで次を実行すると測れます。
@@ -144,9 +147,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\coverage.ps1
 Windows では Core と設定画面の両方のテストを測り、結果を合算します。
 ほかの OS では Core のテストだけを測ります。
 この計測は CI では実行しません。最近の結果と、テストしていない処理は [検証状況](docs/verification.md) にあります。
-
-GitHub Actions は PR と `main` への push のたびに、Windows の runner で同じスクリプトを実行します。
-`v` で始まるタグを push したときも同じスクリプトを実行し、ZIP を添付した Release の下書きを作ります（[Release の作り方](docs/release.md)）。
 
 ## ライセンス
 

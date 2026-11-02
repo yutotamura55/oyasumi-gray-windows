@@ -35,14 +35,16 @@ Check(form.ReadSettings() == AppSettings.ForStart(true, new TimeOnly(21, 30)), "
 Check(form.Preview.Text.Contains("21:30") && form.Preview.Text.Contains("22:30") && form.Preview.Text.Contains("04:00"), "予告は固定の時刻を示す");
 Console.WriteLine("PASS 設定画面は開始時刻とオン・オフだけを扱う");
 
+// Close() raises FormClosing with CloseReason.UserClosing, the same reason as the title bar's close button.
+// Sending the button's own window message is not tested.
 form.Close();
 Application.DoEvents();
-Check(!form.IsDisposed && !form.Visible, "閉じるボタンでは画面を隠すだけで常駐を続ける");
+Check(!form.IsDisposed && !form.Visible, "利用者が閉じる操作では画面を隠すだけで常駐を続ける");
 form.Show();
 form.CloseForExit();
 Application.DoEvents();
 Check(form.IsDisposed, "終了するときは画面を閉じる");
-Console.WriteLine("PASS 設定画面は閉じても隠すだけで、終了時だけ閉じる");
+Console.WriteLine("PASS 設定画面は利用者が閉じても隠すだけで、終了時だけ閉じる");
 
 // The real Run key is never touched: these checks use a temporary key under the test's own name.
 var testKey = $@"Software\OyasumiGray.Tests\{Guid.NewGuid():N}";
