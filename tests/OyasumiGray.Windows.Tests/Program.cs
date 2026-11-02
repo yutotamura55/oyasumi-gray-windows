@@ -35,6 +35,15 @@ Check(form.ReadSettings() == AppSettings.ForStart(true, new TimeOnly(21, 30)), "
 Check(form.Preview.Text.Contains("21:30") && form.Preview.Text.Contains("22:30") && form.Preview.Text.Contains("04:00"), "予告は固定の時刻を示す");
 Console.WriteLine("PASS 設定画面は開始時刻とオン・オフだけを扱う");
 
+form.Close();
+Application.DoEvents();
+Check(!form.IsDisposed && !form.Visible, "閉じるボタンでは画面を隠すだけで常駐を続ける");
+form.Show();
+form.CloseForExit();
+Application.DoEvents();
+Check(form.IsDisposed, "終了するときは画面を閉じる");
+Console.WriteLine("PASS 設定画面は閉じても隠すだけで、終了時だけ閉じる");
+
 // The real Run key is never touched: these checks use a temporary key under the test's own name.
 var testKey = $@"Software\OyasumiGray.Tests\{Guid.NewGuid():N}";
 try
@@ -109,6 +118,17 @@ Check(fadingStatus.FormStatusText == "現在の状態: 移行中・白黒度50%"
 Check(fadingStatus.MenuStatusText == "移行中・白黒度50%", "メニューの短い状態表示");
 Check(fadingStatus.CanPause && !fadingStatus.CanResume && !fadingStatus.CanForceClear, "移行中の操作可否");
 Console.WriteLine("PASS 移行中の表示と操作可否");
+
+var grayStatus = TrayStatusPresentation.Create(
+    sessionAvailable: true, effectState: EffectState.Applied, effectError: null,
+    settingsProblem: false, manualHold: false, snapshot: gray);
+Check(grayStatus.FormStatusText == "現在の状態: 白黒表示中", "白黒表示中の表示");
+Check(grayStatus.CanPause && !grayStatus.CanResume && !grayStatus.CanForceClear, "白黒表示中の操作可否");
+var beforeFirstEvaluation = TrayStatusPresentation.Create(
+    sessionAvailable: true, effectState: EffectState.Idle, effectError: null,
+    settingsProblem: false, manualHold: false, snapshot: null);
+Check(beforeFirstEvaluation.FormStatusText == "現在の状態: 開始前" && !beforeFirstEvaluation.CanPause, "時刻を計算する前の表示");
+Console.WriteLine("PASS 白黒表示中と、時刻を計算する前の表示");
 
 var waiting = new ScheduleSnapshot(0, SchedulePhase.Waiting, DateTimeOffset.UtcNow.AddHours(1));
 var waitingStatus = TrayStatusPresentation.Create(
