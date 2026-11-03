@@ -85,7 +85,8 @@ HDR、独占全画面ゲーム、保護された動画、リモートデスク�
 `src/OyasumiGray.Core` は、時刻計算・設定保存・色変換の制御を扱います。
 `src/OyasumiGray.Windows` は、設定画面・通知領域・Windows API を扱います。
 [設計書](docs/design.md) は実装前の判断と受け入れ条件を記録した文書です。
-[実装計画](docs/implementation-plan.md) には残る実機確認項目があります。
+[実装計画](docs/implementation-plan.md) は実装当時の手順を記録した文書で、手順はすべて完了しています。
+現在の確認結果は [検証状況](docs/verification.md) にあります。
 
 ## ビルドとテスト
 
