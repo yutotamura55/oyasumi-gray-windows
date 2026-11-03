@@ -15,6 +15,14 @@ var cases = new (string Name, Action Run)[]
     ("移行時間と復帰時刻を固定する", FixedSchedule),
     ("読み込んだ設定に固定値を使う", LoadedSettingsUseFixedSchedule),
     ("競合を検出したら終了時に他者の値を消さない", ConflictRelease),
+    ("起動時に他者の色変更と読み取りの失敗を見つける", InitialCheck),
+    ("競合と異常から再開する", RetryAfterConflictAndFault),
+    ("画面構成の変更後に自分の効果を照合する", DisplayChangeReconcile),
+    ("強制解除は他者の色変更も消す", ForceClear),
+    ("色変更の失敗を異常として止める", EffectFailure),
+    ("一時解除を保存し壊れた入力を拒否", PauseStorage),
+    ("壊れた設定ファイルを拒否する", BrokenSettingsFiles),
+    ("OS から読んだ行列を検証する", MatrixFromArray),
 };
 
 var failures = 0;
@@ -28,6 +36,13 @@ return failures == 0 ? 0 : 1;
 static void Check(bool condition, string message)
 {
     if (!condition) throw new Exception(message);
+}
+
+static bool Throws<T>(Action action) where T : Exception
+{
+    try { action(); }
+    catch (T) { return true; }
+    return false;
 }
 
 static DateTimeOffset Utc(int day, int hour, int minute = 0) => new(2026, 9, day, hour, minute, 0, TimeSpan.Zero);
@@ -112,16 +127,14 @@ static void SettingsStorage()
     try
     {
         var store = new SettingsStore(path);
-        Check(store.LoadSettings() == AppSettings.Default, "initial defaults");
+        Check(!store.HasSettings && store.LoadSettings() == AppSettings.Default, "initial defaults");
         var saved = AppSettings.ForStart(true, new TimeOnly(22, 0));
         store.SaveSettingsAsync(saved).GetAwaiter().GetResult();
-        Check(store.LoadSettings() == saved, "round trip");
+        Check(store.HasSettings && store.LoadSettings() == saved, "round trip");
         File.WriteAllText(Path.Combine(path, "settings.json"), "{\"schemaVersion\":2}");
-        try { store.LoadSettings(); throw new Exception("unsupported schema accepted"); }
-        catch (InvalidDataException) { }
+        Check(Throws<InvalidDataException>(() => store.LoadSettings()), "unsupported schema accepted");
         File.WriteAllText(Path.Combine(path, "settings.json"), "{\"schemaVersion\":1,\"startTime\":\"22:00\",\"fadeDurationMinutes\":60,\"restoreTime\":\"07:00\"}");
-        try { store.LoadSettings(); throw new Exception("missing enabled accepted"); }
-        catch (InvalidDataException) { }
+        Check(Throws<InvalidDataException>(() => store.LoadSettings()), "missing enabled accepted");
     }
     finally { if (Directory.Exists(path)) Directory.Delete(path, true); }
 }
@@ -137,10 +150,7 @@ static void LoadedSettingsUseFixedSchedule()
         File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"21:30","fadeDurationMinutes":30,"restoreTime":"07:00"}""");
         Check(store.LoadSettings() == AppSettings.ForStart(true, new TimeOnly(21, 30)), "old fade and restore are replaced");
         File.WriteAllText(path, """{"schemaVersion":1,"enabled":true,"startTime":"03:30","fadeDurationMinutes":60,"restoreTime":"07:00"}""");
-        var rejected = false;
-        try { store.LoadSettings(); }
-        catch (InvalidDataException) { rejected = true; }
-        Check(rejected, "a start that is invalid with the fixed schedule is rejected");
+        Check(Throws<InvalidDataException>(() => store.LoadSettings()), "a start that is invalid with the fixed schedule is rejected");
     }
     finally { Directory.Delete(directory, true); }
 }
@@ -181,10 +191,198 @@ static void ConflictRelease()
     Check(fake.Current.NearlyEquals(ColorMatrix.ForRatio(.25)), "external matrix stays");
 }
 
+static void InitialCheck()
+{
+    var clean = new EffectController(new FakeEffect());
+    clean.CheckInitial();
+    Check(clean.State == EffectState.Idle, "no effect at start");
+
+    var other = new FakeEffect { Current = ColorMatrix.ForRatio(.3) };
+    var controller = new EffectController(other);
+    controller.CheckInitial();
+    Check(controller.State == EffectState.Conflict, "another app's effect at start");
+    controller.Apply(.5);
+    Check(other.Writes == 0 && other.Current.NearlyEquals(ColorMatrix.ForRatio(.3)), "no write while in conflict");
+
+    var broken = new EffectController(new FakeEffect { ReadError = new InvalidOperationException("boom") });
+    broken.CheckInitial();
+    Check(broken.State == EffectState.Fault && broken.Error == "InvalidOperationException: boom", "read failure at start");
+}
+
+static void RetryAfterConflictAndFault()
+{
+    var fake = new FakeEffect { Current = ColorMatrix.ForRatio(.3) };
+    var controller = new EffectController(fake);
+    controller.Apply(.5);
+    controller.Retry();
+    Check(controller.State == EffectState.Conflict && fake.Writes == 0, "retry keeps the conflict while the other effect remains");
+    fake.Current = ColorMatrix.Identity;
+    controller.Retry();
+    Check(controller.State == EffectState.Idle, "retry after the other effect is gone");
+    controller.Apply(.5);
+    Check(controller.State == EffectState.Applied && fake.Writes == 1, "apply after retry");
+    controller.Retry();
+    Check(controller.State == EffectState.Applied && controller.HasOwnedEffect, "retry does nothing while applied");
+
+    var failing = new FakeEffect { ReadError = new InvalidOperationException("boom") };
+    var faulted = new EffectController(failing);
+    faulted.Apply(.5);
+    Check(faulted.State == EffectState.Fault, "read failure while applying");
+    failing.ReadError = null;
+    faulted.Retry();
+    Check(faulted.State == EffectState.Idle && faulted.Error is null, "retry clears the fault");
+}
+
+static void DisplayChangeReconcile()
+{
+    var fake = new FakeEffect();
+    var controller = new EffectController(fake);
+    controller.Apply(.5);
+    controller.ReconcileAfterDisplayChange();
+    Check(controller.State == EffectState.Applied && controller.HasOwnedEffect, "own effect survives the change");
+
+    fake.Current = ColorMatrix.Identity;
+    controller.ReconcileAfterDisplayChange();
+    Check(controller.State == EffectState.Idle && !controller.HasOwnedEffect, "effect reset by the OS");
+    controller.Apply(.5);
+    Check(controller.State == EffectState.Applied && fake.Writes == 2, "apply again after the reset");
+
+    fake.Current = ColorMatrix.ForRatio(.25);
+    controller.ReconcileAfterDisplayChange();
+    Check(controller.State == EffectState.Conflict && !controller.HasOwnedEffect, "another app's effect after the change");
+    fake.Current = ColorMatrix.Identity;
+    controller.ReconcileAfterDisplayChange();
+    Check(controller.State == EffectState.Conflict, "a conflict is cleared only by retry");
+
+    var idle = new EffectController(new FakeEffect { Current = ColorMatrix.ForRatio(.25) });
+    idle.ReconcileAfterDisplayChange();
+    Check(idle.State == EffectState.Conflict, "an effect that this app never wrote");
+}
+
+static void ForceClear()
+{
+    var fake = new FakeEffect { Current = ColorMatrix.ForRatio(.3) };
+    var controller = new EffectController(fake);
+    controller.CheckInitial();
+    controller.ForceClear();
+    Check(fake.Current.IsIdentity && fake.Writes == 1 && controller.State == EffectState.Idle, "clears another app's effect");
+
+    var failing = new FakeEffect { WriteError = new InvalidOperationException("denied") };
+    var faulted = new EffectController(failing);
+    faulted.ForceClear();
+    Check(faulted.State == EffectState.Fault && faulted.Error == "InvalidOperationException: denied", "write failure while clearing");
+}
+
+static void EffectFailure()
+{
+    var fake = new FakeEffect { WriteError = new InvalidOperationException("denied") };
+    var controller = new EffectController(fake);
+    controller.Apply(.5);
+    Check(controller.State == EffectState.Fault && !controller.HasOwnedEffect, "write failure while applying");
+    fake.WriteError = null;
+    controller.Apply(.5);
+    Check(controller.State == EffectState.Fault && fake.Writes == 0, "no write while in fault");
+
+    var releasing = new FakeEffect();
+    var owner = new EffectController(releasing);
+    owner.Apply(.5);
+    releasing.WriteError = new InvalidOperationException("denied");
+    owner.Release();
+    // The exit dialog keeps asking while the app still owns an effect.
+    Check(owner.State == EffectState.Fault && owner.HasOwnedEffect, "release failure keeps ownership");
+
+    var reading = new FakeEffect();
+    var reconciling = new EffectController(reading);
+    reconciling.Apply(.5);
+    reading.ReadError = new InvalidOperationException("boom");
+    reconciling.ReconcileAfterDisplayChange();
+    Check(reconciling.State == EffectState.Fault, "read failure after a display change");
+    reconciling.Retry();
+    Check(reconciling.State == EffectState.Fault && reconciling.Error == "InvalidOperationException: boom", "read failure while retrying");
+}
+
+static void PauseStorage()
+{
+    var directory = Path.Combine(Path.GetTempPath(), "oyasumi-test-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var store = new SettingsStore(directory);
+        Check(store.LoadPause() is null, "no pause file");
+        var until = Utc(26, 22, 45);
+        store.SavePauseAsync(until).GetAwaiter().GetResult();
+        Check(store.LoadPause() == until, "round trip");
+        store.SavePauseAsync(null).GetAwaiter().GetResult();
+        Check(store.LoadPause() is null, "pause cleared");
+
+        Check(Throws<ArgumentException>(() => store.SavePauseAsync(new DateTimeOffset(2026, 9, 26, 22, 45, 0, TimeSpan.FromHours(9)))),
+            "a time that is not UTC is not saved");
+
+        foreach (var json in new[]
+        {
+            """{"schemaVersion":1,"pausedUntilUtc":"2026-09-26T22:45:00+09:00"}""",
+            """{"schemaVersion":1}""",
+            """{"schemaVersion":2,"pausedUntilUtc":null}""",
+            "{",
+        })
+        {
+            File.WriteAllText(store.PausePath, json);
+            Check(Throws<InvalidDataException>(() => store.LoadPause()), $"broken pause file accepted: {json}");
+        }
+    }
+    finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+}
+
+static void BrokenSettingsFiles()
+{
+    var directory = Path.Combine(Path.GetTempPath(), "oyasumi-test-" + Guid.NewGuid().ToString("N"));
+    Directory.CreateDirectory(directory);
+    try
+    {
+        var store = new SettingsStore(directory);
+        foreach (var json in new[]
+        {
+            "{",
+            """{"schemaVersion":1,"enabled":true,"startTime":"25:00","fadeDurationMinutes":60,"restoreTime":"04:00"}""",
+            // A valid file made larger than the 16 KiB limit.
+            "{\"schemaVersion\":1,\"enabled\":true,\"startTime\":\"22:00\",\"fadeDurationMinutes\":60,\"restoreTime\":\"04:00\",\"padding\":\"" + new string('x', 16 * 1024) + "\"}",
+        })
+        {
+            File.WriteAllText(store.SettingsPath, json);
+            Check(Throws<InvalidDataException>(() => store.LoadSettings()), $"broken settings file accepted: {json[..Math.Min(json.Length, 60)]}");
+        }
+    }
+    finally { Directory.Delete(directory, true); }
+}
+
+static void MatrixFromArray()
+{
+    var values = ColorMatrix.ForRatio(.5).ToArray();
+    var matrix = ColorMatrix.FromArray(values);
+    Check(matrix.ToArray().SequenceEqual(values), "all values read from the OS are kept");
+    values[0] = 0;
+    Check(matrix.NearlyEquals(ColorMatrix.ForRatio(.5)), "the matrix keeps its own copy");
+    matrix.ToArray()[0] = 0;
+    Check(matrix.NearlyEquals(ColorMatrix.ForRatio(.5)), "the returned array is a copy");
+
+    var oneNaN = ColorMatrix.Identity.ToArray();
+    oneNaN[3] = float.NaN;
+    var oneInfinity = ColorMatrix.Identity.ToArray();
+    oneInfinity[24] = float.PositiveInfinity;
+    foreach (var (bad, name) in new[] { (new float[24], "24 values"), (new float[26], "26 values"), (oneNaN, "one NaN"), (oneInfinity, "one infinity") })
+        Check(Throws<ArgumentException>(() => ColorMatrix.FromArray(bad)), $"invalid matrix accepted: {name}");
+}
+
 sealed class FakeEffect : IDisplayEffect
 {
     public ColorMatrix Current { get; set; } = ColorMatrix.Identity;
     public int Writes { get; private set; }
-    public ColorMatrix Read() => Current;
-    public void Write(ColorMatrix matrix) { Current = matrix; Writes++; }
+    public Exception? ReadError { get; set; }
+    public Exception? WriteError { get; set; }
+    public ColorMatrix Read() => ReadError is null ? Current : throw ReadError;
+    public void Write(ColorMatrix matrix)
+    {
+        if (WriteError is not null) throw WriteError;
+        Current = matrix;
+        Writes++;
+    }
 }

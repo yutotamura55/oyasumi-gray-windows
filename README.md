@@ -132,6 +132,22 @@ Git 上の内容は変わらないため、この操作でコミットすべき�
 GitHub Actions は PR と `main` への push のたびに、Windows の runner で同じスクリプトを実行します。
 `v` で始まるタグを push したときも同じスクリプトを実行し、ZIP を添付した Release の下書きを作ります（[Release の作り方](docs/release.md)）。
 
+## テストのカバレッジを測る
+
+テストがソースのどの行を実行したか（テストカバレッジ、test coverage）は、リポジトリのルートで次を実行すると測れます。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\coverage.ps1
+```
+
+計測には [coverlet.console](https://github.com/coverlet-coverage/coverlet) を使います。
+版は `.config/dotnet-tools.json` で固定していて、スクリプトが `dotnet tool restore` で取得します。
+結果は、プロジェクトごとの行・分岐・メソッドの割合を表でコンソールに表示し、行ごとの実行回数を `artifacts/coverage/coverage.cobertura.xml` に書き出します。
+
+Windows では Core と設定画面の両方のテストを測り、結果を合算します。
+ほかの OS では Core のテストだけを測ります。
+この計測は CI では実行しません。最近の結果と、テストしていない処理は [検証状況](docs/verification.md) にあります。
+
 ## ライセンス
 
 [MIT License](LICENSE) です。
